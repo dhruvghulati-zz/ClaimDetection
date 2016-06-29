@@ -24,7 +24,7 @@ TODO - this needs to account for any further cleaning beyond aliasing we need to
 
 
 # helps detect errors
-numpy.seterr(all='raise')
+numpy.seterr(all='raise'
 
 # load the file
 with open(sys.argv[1]) as jsonFile:
