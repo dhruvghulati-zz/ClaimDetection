@@ -1,0 +1,84 @@
+# so this script takes as input a dictionary in json with the following structure:
+# dep or string pattern : {location1:[values], location2:[values]}, etc.
+# and does the following kinds of filtering:
+# - removes locations that have less than one value for a pattern
+# - removes patterns for which location lists are all over the place (high stdev)
+# - removes patterns that have fewer than arg1 location
+
+# The second argument is a list of (FreeBase) region names to their aliases which will
+# to bring condense the matrix (UK and U.K. becoming the same location), but also they
+# prepare us for experiments 
+
+
+import json
+import numpy
+import sys
+
+'''
+TODO - this needs to account for any further cleaning beyond aliasing we need to do, for example not including anything where the value is 0.
+'''
+
+# We distinguish between the two by re- quiring each region-pattern combination to have appeared at least twice.
+
+# python src/main/sentenceMatrixFiltering.py data/output/sentenceRegionValue.json data/aliases.json data/sentenceMatrixFiltered.json?
+
+
+# helps detect errors
+numpy.seterr(all='raise')
+
+# load the file
+with open(sys.argv[1]) as jsonFile:
+    pattern2locations2values = json.loads(jsonFile.read())
+
+print "patterns before filtering:", len(pattern2locations2values)
+
+# load the file
+with open(sys.argv[2]) as jsonFile:
+    region2aliases = json.loads(jsonFile.read())
+
+# so we first need to take the location2aliases dict and turn in into aliases to region
+alias2region = {} 
+for region, aliases in region2aliases.items():
+    # add the location as alias to itself
+    alias2region[region] = region
+    for alias in aliases:
+        # so if this alias is used for a different location
+        if alias in alias2region and region!=alias2region[alias]:            
+            alias2region[alias] = None
+            alias2region[alias.lower()] = None
+        else:
+            # remember to add the lower
+            alias2region[alias] = region
+            alias2region[alias.lower()] = region
+            
+# now filter out the Nones
+for alias, region in alias2region.items():
+    if region == None:
+        print "alias ", alias, " ambiguous"
+        del alias2region[alias]
+
+# ok, let's traverse now all the patterns and any locations we find we match them case independently to the aliases and replace them with the location
+
+for index, dataTriples in enumerate(pattern2locations2values["sentences"]):
+    # print index
+    # so here are the locations
+    # we must be careful in case two or more locations are collapsed to the same region
+    for location, value in dataTriples['location-value-pair'].items():
+        print location
+        region = location
+    #         # if the location has an alias
+        if location in alias2region:
+            # get it
+            region = alias2region[location]
+            print "New region is ", region
+        elif location.lower() in alias2region:
+            region = alias2region[location.lower()]
+            print "New region is ", region
+        # if we haven't added it to the regions
+        dataTriples['location-value-pair']= {region:value}
+        # regions2values.append({region: value})
+print pattern2locations2values
+
+
+with open(sys.argv[3], "wb") as out:
+    json.dump(pattern2locations2values, out,indent=4)

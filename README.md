@@ -1,1 +1,14 @@
-This is the README
+# Claim Detection Pipeline
+
+data/allCountriesPost2010-2014Filtered15-150.json is the dictionary of per statistical region properties for each property from Freebase e.g.
+
+    {"Canada": {"/location/statistical_region/size_of_armed_forces": 65700.0, "/location/statistical_region/gni_per_capita_in_ppp_dollars": 42530.0, "/location/statistical_region/gdp_nominal": 1736050505050.0, "/location/statistical_region/foreign_direct_investment_net_inflows": 8683048195.0, "/location/statistical_region/life_expectancy": 80.929, "/location/statistical_region/internet_users_percent_population": 86.765864, "/location/statistical_region/cpi_inflation_rate": 1.52, 
+
+1. **utils/testTrainSplit.py**: Take HTML parsed JSONs obtained from Stanford CoreNLP parser and split the JSONs into test and training (those JSONs we know are linked to the labelled claim files vs. not)
+2. **main/sentenceSlots.py**: This adapts the code from `buildMatrix.py`. Takes all the training JSONs from the previous step to obtain the full sentences and the regions/values in those sentences, within outputting `sentenceRegionValue.json`. We also create multiple sentences for every combination of region/value extracted, as long as at least one region and value in the sentence.
+3. **main/sentenceMatrixFiltering.py**: This adapts `matrixFiltering.py` simply to account for alias regions extracted in the previous step, but does not account for sentences that contain the same value for every location, doesn't remove any values above a threshold standard deviation etc..we output `sentenceMatrixFiltered.json`.
+4. **main/propertyPredictor.py**: This takes the filtered sentence matrix and for each location, sentence, value, predicts the closest statistical property (e.g. population, gni per capita) in Freebase to that value based on mean absolute percentage error. Any prediction of a statistical value that is >0.05% MAPE is considered a 0 or 'no_prediction'. This generates `predictedProperties.json`.
+5. **main/testFeatures.py**: Takes every labelled sentence in the labelled Excel files, and does some data munging to extract a MAPE, parsedSentence (with LOCATION_SLOT, NUMBER_SLOT) and statistical region accounting for empty values etc. We also split the 7000 sentences into a 1000 sentence hypertest set. This generates `testLabels.json` and `hyperTestLabels.json`.
+6. **main/logisticBagOfWords.py**: Extract features from the HTML sentences in the training JSONs using a bag of words feature extractor [may change feature extractor but this is fine]. This includes the LOCATION_SLOT and NUMBER_SLOT features, all in lower case. Fit a logistic regression classifier on the training sentences (1 or 0). Do the same process on the test labels above for the hyper parameter [need cross validation later]. Obtain precision, recall, F1. 
+ 
+The algorithm will evolve as we will choose different ways to obtain features and different classifiers, potentially moving to LSTMs. We will also adapt the approach to make multinomial. We will also evolve the lexical approach here to be more latent focused e.g. using word2vec.
