@@ -71,7 +71,6 @@ sentencesDiscarded = 0
 negativeInstances = 0
 positiveInstances = 0
 
-
 def absError(numer,denom):
     return abs(numer-denom)/numpy.abs(float(denom))
 
@@ -87,36 +86,29 @@ def update(sentence):
     # print 'Checking sentence: ', sentence
     (c,target), = sentence.get("location-value-pair").items()
     # print "Checking country: ", c,"and value: ", target
-    res = sentence.copy()
+    # res = sentence.copy()
+    # print property2region2value
     if c in property2region2value:
+        res = sentence.copy()
         country = property2region2value[c]
-        matched = findMatch(target,country)
-        error = absError(target, country.get(matched))
+        matchedProperty = findMatch(target,country)
+        # print "This is matched property: ", matchedProperty
+        error = absError(target, country.get(matchedProperty))
         # res = sentence.copy()
         if error<threshold:
-            res.update({'predictedRegion': matched, 'meanAbsError': error})
+            res.update({'predictedRegion': matchedProperty, 'meanAbsError': error})
             positiveInstances += 1
         else:
             res.update({'predictedRegion': "no_region", 'meanAbsError': 1})
             negativeInstances += 1
-        return res
-    #     country = property2region2value[c]
-    #     matched = findMatch(target,country)
-    #     print 'Matched is ',matched
-    #     error = absError(target, country.get(matched))
-    #     # res = sentence.copy()
-    #     print sentence," has been copied!"
-    #     if error<threshold:
-    #         res.update({'predictedRegion': matched, 'meanAbsError': error})
-    #         positiveInstances += 1
-    #     else:
-    #         negativeInstances += 1
-    #         res.update({'predictedRegion': 0, 'meanAbsError': 1})
-    #     return res
+        predictionSentences.append(res)
+        # return res
     else:
         print c," is not in the Freebase country list"
         sentencesDiscarded+=1
-        del res
+        # del sentence
+    # return res
+
 
 # def balanceNegativeExamples(sentencePred):
 
@@ -129,10 +121,13 @@ if __name__ == "__main__":
     with open(sys.argv[2]) as sentenceFile:
         sentence2locations2values = json.loads(sentenceFile.read())
 
-    print "sentences to predict regions for:", len(sentence2locations2values['sentences'])
+    print "sentences to predict properties for:", len(sentence2locations2values['sentences'])
     '''TODO this should be able to take a MAPE threshold as argument
     '''
-    updated = [update(sentence) for sentence in sentence2locations2values['sentences']]
+    predictionSentences = []
+
+    for sentence in sentence2locations2values['sentences']:
+        update(sentence)
 #     threshold = sys.argv[4]
 # pr  int "MAPE threshold is", threshold
 #     print updated
@@ -147,6 +142,6 @@ if __name__ == "__main__":
     # The new sentence file with predicted statistical property
     outputFile = sys.argv[3]
     with open(sys.argv[3], "wb") as out:
-        json.dump(updated, out,indent=4)
+        json.dump(predictionSentences, out,indent=4)
 
     # properties = json.loads(open(os.path.dirname(os.path.abspath(sys.argv[1])) + "/featuresKept.json").read())

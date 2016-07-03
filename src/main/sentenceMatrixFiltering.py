@@ -24,7 +24,7 @@ TODO - this needs to account for any further cleaning beyond aliasing we need to
 
 
 # helps detect errors
-numpy.seterr(all='raise'
+numpy.seterr(all='raise')
 
 # load the file
 with open(sys.argv[1]) as jsonFile:
@@ -32,7 +32,8 @@ with open(sys.argv[1]) as jsonFile:
 
 print "patterns before filtering:", len(pattern2locations2values)
 
-# load the file
+#load the file
+print "Loading the aliases file\n"
 with open(sys.argv[2]) as jsonFile:
     region2aliases = json.loads(jsonFile.read())
 
@@ -59,26 +60,29 @@ for alias, region in alias2region.items():
 
 # ok, let's traverse now all the patterns and any locations we find we match them case independently to the aliases and replace them with the location
 
+print "Applying aliases\n"
+
 for index, dataTriples in enumerate(pattern2locations2values["sentences"]):
     # print index
     # so here are the locations
     # we must be careful in case two or more locations are collapsed to the same region
     for location, value in dataTriples['location-value-pair'].items():
-        print location
+        # print location
         region = location
     #         # if the location has an alias
         if location in alias2region:
             # get it
             region = alias2region[location]
-            print "New region is ", region
+            # print "New region is ", region
         elif location.lower() in alias2region:
             region = alias2region[location.lower()]
-            print "New region is ", region
+            # print "New region is ", region
         # if we haven't added it to the regions
         dataTriples['location-value-pair']= {region:value}
         # regions2values.append({region: value})
-print pattern2locations2values
+# print pattern2locations2values
 
+print "Writing to filtered file\n"
 
 with open(sys.argv[3], "wb") as out:
     json.dump(pattern2locations2values, out,indent=4)
