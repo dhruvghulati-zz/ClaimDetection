@@ -8,10 +8,19 @@ import operator
 import numpy
 import sys
 import json
-import os.path
+
+'''
+TODO - evaluate the information extraction via 4 fold training?
+How to test coverage and average MAPE per statistical property?
+Do we constrain at this step which properties you are predicting?
+'''
 
 
 threshold = float(sys.argv[4])
+# Check if OK to constrain properties being predicted
+# with open(sys.argv[4]) as featuresKept:
+#         properties = json.loads(featuresKept.read())
+#         properties.append("no_region")
 
 def MAPE(predDict, trueDict, verbose=False):
     absPercentageErrors = {}
@@ -140,6 +149,7 @@ if __name__ == "__main__":
 
     # predictRegion(sentence2locations2values,property2region2value)
     # The new sentence file with predicted statistical property
+
     outputFile = sys.argv[3]
     with open(sys.argv[3], "wb") as out:
         json.dump(predictionSentences, out,indent=4)

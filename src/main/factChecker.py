@@ -8,7 +8,9 @@ And the checks files parsed and NER'ed JSONs by Stanford CoreNLP and produces th
 
 Location:[dep1:[val1, val2], dep1:[val1, val2, ...]]
 
-It produces a ranking of the sentences according to the relation at question and scores each value by MAPE 
+It produces a ranking of the sentences according to the relation at question and scores each value by MAPE
+
+python src/main/factChecker.py data/freebaseTriples.json data/theMatrixExtend120TokenFiltered_2_2_0.1_0.5_fixed2.json population 0.03125 data/htmlPages2textPARSEDALL data/locationNames data/aliases.json out/population.tsv
 
 '''
 
