@@ -113,7 +113,7 @@ def update(sentence):
         predictionSentences.append(res)
         # return res
     else:
-        print c," is not in the Freebase country list"
+        # print c," is not in the Freebase country list"
         sentencesDiscarded+=1
         # del sentence
     # return res
@@ -134,8 +134,8 @@ if __name__ == "__main__":
     '''TODO this should be able to take a MAPE threshold as argument
     '''
     predictionSentences = []
-
-    for sentence in sentence2locations2values['sentences']:
+    # Note this can be made smaller for iteration purposes we don't need to use all sentences
+    for sentence in sentence2locations2values['sentences'][:50000]:
         update(sentence)
 #     threshold = sys.argv[4]
 # pr  int "MAPE threshold is", threshold
