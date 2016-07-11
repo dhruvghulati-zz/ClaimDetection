@@ -125,33 +125,33 @@ def update(sentence):
 
 # src/main/propertyPredictor.py data/freebaseTriples.json data/sentenceMatrixFiltered.json data/output/predictedProperties.json 0.05
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-    with open(sys.argv[2]) as sentenceFile:
-        sentence2locations2values = json.loads(sentenceFile.read())
+with open(sys.argv[2]) as sentenceFile:
+    sentence2locations2values = json.loads(sentenceFile.read())
 
-    print "sentences to predict properties for:", len(sentence2locations2values['sentences'])
-    '''TODO this should be able to take a MAPE threshold as argument
-    '''
-    predictionSentences = []
-    # Note this can be made smaller for iteration purposes we don't need to use all sentences
-    for sentence in sentence2locations2values['sentences'][:50000]:
-        update(sentence)
+print "sentences to predict properties for:", len(sentence2locations2values['sentences'])
+'''TODO this should be able to take a MAPE threshold as argument
+'''
+predictionSentences = []
+# Note this can be made smaller for iteration purposes we don't need to use all sentences
+for sentence in sentence2locations2values['sentences'][:50000]:
+    update(sentence)
 #     threshold = sys.argv[4]
 # pr  int "MAPE threshold is", threshold
 #     print updated
 
-    print "Sentences discarded", sentencesDiscarded
-    print "Negative instances",negativeInstances
-    print "Positive instances", positiveInstances
+print "Sentences discarded", sentencesDiscarded
+print "Negative instances",negativeInstances
+print "Positive instances", positiveInstances
 
-    # updated = balanceNegativeExamples(updated)
+# updated = balanceNegativeExamples(updated)
 
-    # predictRegion(sentence2locations2values,property2region2value)
-    # The new sentence file with predicted statistical property
+# predictRegion(sentence2locations2values,property2region2value)
+# The new sentence file with predicted statistical property
 
-    outputFile = sys.argv[3]
-    with open(sys.argv[3], "wb") as out:
-        json.dump(predictionSentences, out,indent=4)
+outputFile = sys.argv[3]
+with open(sys.argv[3], "wb") as out:
+    json.dump(predictionSentences, out,indent=4)
 
     # properties = json.loads(open(os.path.dirname(os.path.abspath(sys.argv[1])) + "/featuresKept.json").read())
