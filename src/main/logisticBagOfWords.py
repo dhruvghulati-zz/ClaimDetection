@@ -55,9 +55,10 @@ def training_features(inputSentences):
 
     global vectorizer
     # [:15000]
-    for i, sentence in enumerate(inputSentences[:15000]):
+    for i, sentence in enumerate(inputSentences[:10000]):
     # Dont train if the sentence contains a random region we don't care about
-        if sentence and sentence['predictedRegion'] in properties:
+    # and sentence['predictedRegion'] in properties
+        if sentence:
                 train_wordlist.append(" ".join(sentence_to_words(sentence['parsedSentence'], True)))
                 if sentence['predictedRegion']!="no_region":
                     binary_train_labels.append(1)
@@ -137,36 +138,53 @@ def test_features(testSentences):
 
     return test_data_features
 
+def win(row):
+    if row['truePropLabels'] == row['predictedPropLabels'] and row['trueClaimLabels']==1:
+        val = 1
+    elif row['truePropLabels'] != row['predictedPropLabels'] and row['trueClaimLabels']==0:
+        val = 1
+    else:
+        val = 0
+    return val
+
 def propEvaluation(truePropLabels,predictedPropLabels, trueClaimLabels):
 
     precision = 0
+    # TODO - need to create a per property chart
+    # print type(truePropLabels)
+    # print type(predictedPropLabels)
+    # print type(trueClaimLabels)
+    #
+    # print truePropLabels
+    # print predictedPropLabels
+    # print trueClaimLabels
 
-    for trueProp, trueClaim, predPropLabel in zip(truePropLabels, trueClaimLabels, predictedPropLabels):
-        print(trueProp, trueClaim, predPropLabel)
-        if (trueProp==predPropLabel) and (trueClaim==1):
-            precision+=1
+    summaryDF = pd.DataFrame(({'truePropLabels':truePropLabels,'trueClaimLabels': trueClaimLabels, 'predictedPropLabels':predictedPropLabels}))
 
-    precisionPercent = precision/len(truePropLabels)
+    summaryDF['modelWin'] = summaryDF.apply(win, axis=1)
 
-    print "Precision of prediction is", precisionPercent
+    # summaryDF = summaryDF.groupby('truePropLabels').sum()
+    #
+    # summaryDF = summaryDF.append(summaryDF.sum(numeric_only=True), ignore_index=True)
 
-    return precisionPercent
+    # .groupby('truePropLabels').count()
 
-def binEvaluation(truePropLabels,predictedBinLabels, trueClaimLabels):
+    print "Grouped dataframe by property is\n"
 
-    precision = 0
+    print summaryDF.head(n=5)
 
-    for trueProp, trueClaim, predBinLabel in zip(truePropLabels, trueClaimLabels, predictedBinLabels):
-        print(trueProp, trueClaim, predBinLabel)
-        if (trueProp==predBinLabel) and (trueClaim==1):
-            precision+=1
+    # for trueProp, trueClaim, predPropLabel in zip(truePropLabels, trueClaimLabels, predictedPropLabels):
+    #     # print(trueProp, trueClaim, predPropLabel)
+    #     if ((trueProp==predPropLabel) and (trueClaim==1)) or ((trueProp!=predPropLabel) and (trueClaim==0)):
+    #         precision+=1
 
-    precisionPercent = precision/len(truePropLabels)
+    # precisionPercent = precision/len(truePropLabels)
+    #
+    # print "Precision of prediction is", precisionPercent
 
-    print "Precision of prediction is", precisionPercent
+    return precision
 
-    return precisionPercent
-
+    # return precisionPercent
 
 # /Users/dhruv/Documents/university/ClaimDetection/data/output/predictedProperties.json
 # /Users/dhruv/Documents/university/ClaimDetection/data/output/hyperTestLabels.json
@@ -306,27 +324,59 @@ threshold = test['threshold'][0]
 
 # These are the baselines
 
+unique_train_labels = set(train_property_labels)
+
+# print unique_train_labels
+
+categorical_random = rng.choice(list(unique_train_labels), len(finalTestSentences))
+
+# print "Categorical random is ", categorical_random
+
 random_result = rng.randint(2, size=len(finalTestSentences))
 
 positive_result = np.ones(len(finalTestSentences))
 
 negative_result = np.zeros(len(finalTestSentences))
 
-
+# TODO - Need to clean these up
 y_multi_true = np.array(test['property'])
 y_andreas_mape = test['mape_label']
 y_true_claim = np.array(test['claim'])
 y_logpred = binary_logit_result
 y_multilogpred = np.array(multi_logit_result)
 y_multilogpred_binary = binary_multi_logit_result
+y_multilogpred_to_binary = []
+y_cat_random_to_binary = []
 y_model_mape = test['predicted_mape_label']
+y_distant_sv_property = test['predictedRegion']
+y_distant_sv_to_binary = []
 y_randpred = random_result
 y_pospred = positive_result
 y_negpred = negative_result
 
-propEvaluation(y_multi_true,y_multilogpred,y_true_claim)
+# Convert the categorical predictions to binary based on if matching property
+for sv_property, multinomial_property, cat_random, true_property in zip(y_distant_sv_property,y_multilogpred,categorical_random,y_multi_true):
+    if sv_property ==true_property:
+        y_distant_sv_to_binary.append(1)
+    else:
+        y_distant_sv_to_binary.append(0)
+    if multinomial_property ==true_property:
+        y_multilogpred_to_binary.append(1)
+    else:
+        y_multilogpred_to_binary.append(0)
+    if cat_random == true_property:
+        y_cat_random_to_binary.append(1)
+    else:
+        y_cat_random_to_binary.append(0)
 
-binEvaluation(y_multi_true,y_model_mape,y_true_claim)
+# print "Binary multinomial prediction is ", y_multilogpred_to_binary
+# print "Binary distant supervision prediction is ",y_distant_sv_to_binary
+
+# propEvaluation(y_multi_true,y_multilogpred,y_true_claim)
+#
+# propEvaluation(y_multi_true,y_distant_sv_property,y_true_claim)
+#
+# print "Precision, recall and F1 and support for Andreas model are ", precision_recall_fscore_support(y_pospred, y_true_claim, pos_label=None,average='macro'),"\n"
 
 
 # print "True claim labels are", len(y_true_claim)
@@ -373,19 +423,30 @@ output.to_csv(path_or_buf=resultPath,encoding='utf-8')
 
 # Now we write our precision F1 etc to an Excel file
 
-random_precision = precision_score(y_true_claim, y_randpred, pos_label=None,average='macro')
-random_recall = recall_score(y_true_claim, y_randpred, pos_label=None,average='macro')
-random_f1 = f1_score(y_true_claim, y_randpred, pos_label=None,average='macro')
+random_precision = precision_score(y_true_claim, y_randpred)
+random_recall = recall_score(y_true_claim, y_randpred)
+random_f1 = f1_score(y_true_claim, y_randpred)
 
 random_data = {'precision': random_precision,
     'recall': random_recall,
     'f1': random_f1}
 
-randomDF = pd.DataFrame(random_data,index=['Random Baseline'])
+randomDF = pd.DataFrame(random_data,index=['Binary Random Baseline'])
 
-andreas_precision = precision_score(y_pospred, y_true_claim, pos_label=None,average='macro')
-andreas_recall = recall_score(y_pospred, y_true_claim, pos_label=None,average='macro')
-andreas_f1 = f1_score(y_pospred, y_true_claim, pos_label=None,average='macro')
+cat_random_precision = precision_score(y_true_claim, y_cat_random_to_binary)
+cat_random_recall = recall_score(y_true_claim, y_cat_random_to_binary)
+cat_random_f1 = f1_score(y_true_claim, y_cat_random_to_binary)
+
+cat_random_data = {'precision': cat_random_precision,
+    'recall': cat_random_recall,
+    'f1': cat_random_f1}
+
+cat_randomDF = pd.DataFrame(cat_random_data,index=['Categorical Random Baseline (to Binary)'])
+
+
+andreas_precision = precision_score(y_true_claim, y_pospred)
+andreas_recall = recall_score(y_true_claim, y_pospred)
+andreas_f1 = f1_score(y_true_claim, y_pospred)
 
 andreas_data = {'precision': andreas_precision,
     'recall': andreas_recall,
@@ -393,29 +454,29 @@ andreas_data = {'precision': andreas_precision,
 
 andreasDF = pd.DataFrame(andreas_data,index=['Previous Model'])
 
-mape_rule_precision = precision_score(y_true_claim, y_model_mape, pos_label=None,average='macro')
-mape_rule_recall = recall_score(y_true_claim, y_model_mape, pos_label=None,average='macro')
-mape_rule_f1 = f1_score(y_true_claim, y_model_mape, pos_label=None,average='macro')
+mape_rule_precision = precision_score(y_true_claim, y_distant_sv_to_binary)
+mape_rule_recall = recall_score(y_true_claim, y_distant_sv_to_binary)
+mape_rule_f1 = f1_score(y_true_claim, y_distant_sv_to_binary)
 
 mape_rule_data = {'precision': mape_rule_precision,
     'recall': mape_rule_recall,
     'f1': mape_rule_f1}
 
-mapeDF = pd.DataFrame(random_data,index=['Rule Based MAPE Model'])
+mapeDF = pd.DataFrame(random_data,index=['Rule Based MAPE Distant Supervision Model'])
 
-pos_precision = precision_score(y_true_claim, y_pospred, pos_label=None,average='macro')
-pos_recall = recall_score(y_true_claim, y_pospred, pos_label=None,average='macro')
-pos_f1 = f1_score(y_true_claim, y_pospred, pos_label=None,average='macro')
+# pos_precision = precision_score(y_true_claim, y_pospred, pos_label=None,average='macro')
+# pos_recall = recall_score(y_true_claim, y_pospred, pos_label=None,average='macro')
+# pos_f1 = f1_score(y_true_claim, y_pospred, pos_label=None,average='macro')
+#
+# pos_data = {'precision': pos_precision,
+#     'recall': pos_recall,
+#     'f1': pos_f1}
+#
+# posDF = pd.DataFrame(pos_data,index=['Positive Naive Baseline'])
 
-pos_data = {'precision': pos_precision,
-    'recall': pos_recall,
-    'f1': pos_f1}
-
-posDF = pd.DataFrame(pos_data,index=['Positive Naive Baseline'])
-
-neg_precision = precision_score(y_true_claim, y_negpred, pos_label=None,average='macro')
-neg_recall = recall_score(y_true_claim, y_negpred, pos_label=None,average='macro')
-neg_f1 = f1_score(y_true_claim, y_negpred, pos_label=None,average='macro')
+neg_precision = precision_score(y_true_claim, y_negpred)
+neg_recall = recall_score(y_true_claim, y_negpred)
+neg_f1 = f1_score(y_true_claim, y_negpred)
 
 neg_data = {'precision': neg_precision,
     'recall': neg_recall,
@@ -423,27 +484,27 @@ neg_data = {'precision': neg_precision,
 
 negDF = pd.DataFrame(neg_data,index=['Negative Naive Baseline'])
 
-binary_precision = precision_score(y_true_claim, y_logpred, pos_label=None,average='macro')
-binary_recall = recall_score(y_true_claim, y_logpred, pos_label=None,average='macro')
-binary_f1 = f1_score(y_true_claim, y_logpred, pos_label=None,average='macro')
+# binary_precision = precision_score(y_true_claim, y_logpred, pos_label=None,average='macro')
+# binary_recall = recall_score(y_true_claim, y_logpred, pos_label=None,average='macro')
+# binary_f1 = f1_score(y_true_claim, y_logpred, pos_label=None,average='macro')
+#
+# binary_data = {'precision': binary_precision,
+#     'recall': binary_recall,
+#     'f1': binary_f1}
+#
+# binaryDF = pd.DataFrame(binary_data,index=['Binary Logistic Regression (Bag of Words)'])
 
-binary_data = {'precision': binary_precision,
-    'recall': binary_recall,
-    'f1': binary_f1}
-
-binaryDF = pd.DataFrame(binary_data,index=['Binary Logistic Regression (Bag of Words)'])
-
-multi_precision = precision_score(y_true_claim, y_multilogpred_binary, pos_label=None,average='macro')
-multi_recall = recall_score(y_true_claim, y_multilogpred_binary, pos_label=None,average='macro')
-multi_f1 = f1_score(y_true_claim, y_multilogpred_binary, pos_label=None,average='macro')
+multi_precision = precision_score(y_true_claim, y_multilogpred_to_binary)
+multi_recall = recall_score(y_true_claim, y_multilogpred_to_binary)
+multi_f1 = f1_score(y_true_claim, y_multilogpred_to_binary)
 
 multi_data = {'precision': multi_precision,
     'recall': multi_recall,
     'f1': multi_f1}
 
-multiDF = pd.DataFrame(multi_data,index=['Multinomial Logistic Regression w/ Binary Evaluation (Bag of Words)'])
+multiDF = pd.DataFrame(multi_data,index=['Multinomial MAPE-based Logistic Regression w/ Binary Evaluation (Bag of Words)'])
 
-summaryDF = pd.concat([randomDF,andreasDF,mapeDF,posDF,negDF,binaryDF,multiDF])
+summaryDF = pd.concat([randomDF,cat_randomDF,andreasDF,mapeDF,negDF,multiDF])
 
 
 precisionF1Path = os.path.join(sys.argv[5]+"test/"+ testSet + '_'+str(threshold)+'_summaryEval.csv')

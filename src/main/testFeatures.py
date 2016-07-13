@@ -185,9 +185,9 @@ def labelSlotFiltering(testLabels):
     print "Total test labels with no property is ",len([dataTriples['property'] for a,dataTriples in enumerate(testLabels) if dataTriples['property']=={}])
     # Here I give "no region" to any sentence not a claim
     for i, dataTriples in enumerate(testLabels):
-        if dataTriples['claim']==0 and dataTriples['claim'] is not None:
-            # print "Claim is ", dataTriples['property']
-            dataTriples['property']="no_region"
+        # if dataTriples['claim']==0 and dataTriples['claim'] is not None:
+        #     # print "Claim is ", dataTriples['property']
+        #     dataTriples['property']="no_region"
     # Finally, specify the threshold that was used
         dataTriples['threshold']=threshold
     return testLabels

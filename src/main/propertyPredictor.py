@@ -16,7 +16,7 @@ Do we constrain at this step which properties you are predicting?
 '''
 
 
-threshold = float(sys.argv[4])
+
 # Check if OK to constrain properties being predicted
 # with open(sys.argv[4]) as featuresKept:
 #         properties = json.loads(featuresKept.read())
@@ -75,10 +75,8 @@ def loadMatrix(jsonFile):
     print valueCounter, " values loaded"
     return property2region2value
 
-property2region2value = loadMatrix(sys.argv[1])
-sentencesDiscarded = 0
-negativeInstances = 0
-positiveInstances = 0
+
+
 
 def absError(numer,denom):
     return abs(numer-denom)/numpy.abs(float(denom))
@@ -88,9 +86,16 @@ def findMatch(target, country):
     return min(country, key= lambda x: absError(target, country.get(x)))
 
 def update(sentence):
+
     global sentencesDiscarded
-    global negativeInstances
-    global positiveInstances
+    global negativeOpenThresholdInstances
+    global positiveOpenThresholdInstances
+    global negativeOpenInstances
+    global positiveOpenInstances
+    global negativeClosedThresholdInstances
+    global positiveClosedThresholdInstances
+    global negativeClosedInstances
+    global positiveClosedInstances
     global threshold
     # print 'Checking sentence: ', sentence
     (c,target), = sentence.get("location-value-pair").items()
@@ -103,13 +108,36 @@ def update(sentence):
         matchedProperty = findMatch(target,country)
         # print "This is matched property: ", matchedProperty
         error = absError(target, country.get(matchedProperty))
-        # res = sentence.copy()
-        if error<threshold:
-            res.update({'predictedRegion': matchedProperty, 'meanAbsError': error})
-            positiveInstances += 1
+        if matchedProperty in properties:
+            res.update({'predictedPropertyOpen': matchedProperty, 'meanAbsError': error})
+            res.update({'predictedPropertyClosed': matchedProperty, 'meanAbsError': error})
+            positiveOpenInstances +=1
+            positiveClosedInstances +=1
+            if error<threshold:
+                res.update({'predictedPropertyClosedThreshold': matchedProperty, 'meanAbsError': error})
+                res.update({'predictedPropertyOpenThreshold': matchedProperty, 'meanAbsError': error})
+                positiveOpenThresholdInstances += 1
+            else:
+                res.update({'predictedPropertyClosedThreshold': "no_region", 'meanAbsError': error})
+                res.update({'predictedPropertyOpenThreshold': "no_region", 'meanAbsError': error})
+                negativeOpenThresholdInstances +=1
         else:
-            res.update({'predictedRegion': "no_region", 'meanAbsError': 1})
-            negativeInstances += 1
+            res.update({'predictedPropertyClosed': "unmatched_region", 'meanAbsError': error})
+            res.update({'predictedPropertyClosedThreshold': "unmatched_region", 'meanAbsError': error})
+            negativeClosedInstances+=1
+            positiveOpenInstances +=1
+            if error<threshold:
+                res.update({'predictedPropertyOpen': matchedProperty, 'meanAbsError': error})
+                res.update({'predictedPropertyOpenThreshold': matchedProperty, 'meanAbsError': error})
+                positiveOpenThresholdInstances += 1
+                positiveClosedThresholdInstances +=1
+            else:
+                res.update({'predictedPropertyOpen': matchedProperty, 'meanAbsError': error})
+                res.update({'predictedPropertyOpenThreshold': "no_region", 'meanAbsError': error})
+                negativeOpenThresholdInstances +=1
+                negativeClosedThresholdInstances +=1
+        # res = sentence.copy()
+
         predictionSentences.append(res)
         # return res
     else:
@@ -125,33 +153,60 @@ def update(sentence):
 
 # src/main/propertyPredictor.py data/freebaseTriples.json data/sentenceMatrixFiltered.json data/output/predictedProperties.json 0.05
 
-# if __name__ == "__main__":
+if __name__ == "__main__":
 
-with open(sys.argv[2]) as sentenceFile:
-    sentence2locations2values = json.loads(sentenceFile.read())
+    threshold = float(sys.argv[4])
 
-print "sentences to predict properties for:", len(sentence2locations2values['sentences'])
-'''TODO this should be able to take a MAPE threshold as argument
-'''
-predictionSentences = []
-# Note this can be made smaller for iteration purposes we don't need to use all sentences
-for sentence in sentence2locations2values['sentences'][:50000]:
-    update(sentence)
-#     threshold = sys.argv[4]
-# pr  int "MAPE threshold is", threshold
-#     print updated
+    with open(sys.argv[2]) as sentenceFile:
+        sentence2locations2values = json.loads(sentenceFile.read())
 
-print "Sentences discarded", sentencesDiscarded
-print "Negative instances",negativeInstances
-print "Positive instances", positiveInstances
+    with open(sys.argv[5]) as featuresKept:
+        properties = json.loads(featuresKept.read())
+    print "We have ",len(properties),"features kept\n"
 
-# updated = balanceNegativeExamples(updated)
+    print "sentences to predict properties for:", len(sentence2locations2values['sentences'])
+    '''TODO this should be able to take a MAPE threshold as argument
+    '''
+    predictionSentences = []
 
-# predictRegion(sentence2locations2values,property2region2value)
-# The new sentence file with predicted statistical property
+    property2region2value = loadMatrix(sys.argv[1])
 
-outputFile = sys.argv[3]
-with open(sys.argv[3], "wb") as out:
-    json.dump(predictionSentences, out,indent=4)
+    sentencesDiscarded = 0
+    negativeOpenThresholdInstances = 0
+    positiveOpenThresholdInstances = 0
+    negativeOpenInstances = 0
+    positiveOpenInstances = 0
+    negativeClosedThresholdInstances = 0
+    positiveClosedThresholdInstances = 0
+    negativeClosedInstances = 0
+    positiveClosedInstances = 0
+
+    # Note this can be made smaller for iteration purposes we don't need to use all sentences
+    for sentence in sentence2locations2values['sentences'][:50000]:
+        update(sentence)
+    #     threshold = sys.argv[4]
+    # pr  int "MAPE threshold is", threshold
+    #     print updated
+
+    print "Sentences discarded", sentencesDiscarded
+    print "Sentences with matching countries", len(predictionSentences)
+    print "Negative open instances",negativeOpenInstances
+    print "Positive open instances", positiveOpenInstances
+    print "Negative open threshold instances",negativeOpenThresholdInstances
+    print "Positive open threshold instances", positiveOpenThresholdInstances
+    print "Negative closed instances",negativeClosedInstances
+    print "Positive closed instances", positiveClosedInstances
+    print "Negative closed threshold instances",negativeClosedThresholdInstances
+    print "Positive closed threshold instances", positiveClosedThresholdInstances
+
+
+    # updated = balanceNegativeExamples(updated)
+
+    # predictRegion(sentence2locations2values,property2region2value)
+    # The new sentence file with predicted statistical property
+
+    outputFile = sys.argv[3]
+    with open(sys.argv[3], "wb") as out:
+        json.dump(predictionSentences, out,indent=4)
 
     # properties = json.loads(open(os.path.dirname(os.path.abspath(sys.argv[1])) + "/featuresKept.json").read())
