@@ -38,8 +38,8 @@ def loadMatrix(jsonFile):
             # Deleting any properties we don't care about'
             # print "these are the properties:",properties
             # print "this is the property to check", property
-            if property not in properties:
-                del property2value[property]
+            # if property not in properties:
+            #     del property2value[property]
                 # print property2value
                 # print "REMOVED:", "property:",property, "value:", value
             if not np.isfinite(value):
@@ -62,12 +62,17 @@ def absError(numer,denom):
     return abs(numer-denom)/np.abs(float(denom))
 
 def findMatch(target, country):
-    # print "Country for match is ", country
-    return min(country, key= lambda x: absError(target, country.get(x)))
+    filtered_country = {property: country.get(property) for property in properties}
+    filtered_country = {k: v for k, v in filtered_country.items() if v}
+    openMatch = min(country, key= lambda x: absError(target, country.get(x)))
+    closedMatch = min(filtered_country, key= lambda x: absError(target, filtered_country.get(x)))
+    return openMatch, closedMatch
 
 def update(sentence):
-    global negativeInstances
-    global positiveInstances
+    global negativeOpenThresholdInstances
+    global positiveOpenThresholdInstances
+    global negativeClosedThresholdInstances
+    global positiveClosedThresholdInstances
     global threshold
     # print 'Checking sentence: ', sentence
     (c,target), = sentence.get("region-val_pair").items()
@@ -77,21 +82,27 @@ def update(sentence):
     if c in property2region2value:
         res = sentence.copy()
         country = property2region2value[c]
-        matchedProperty = findMatch(target,country)
-        # print "This is matched property: ", matchedProperty
+        matchedProperty, closedMatch = findMatch(target,country)
         error = absError(target, country.get(matchedProperty))
-        # res = sentence.copy()
-        if matchedProperty in properties:
-            if error<threshold:
-                res.update({'predictedRegion': matchedProperty, 'predicted_mape': error,'predicted_mape_label': 1})
-            else:
-                res.update({'predictedRegion': "no_region", 'predicted_mape': error,'predicted_mape_label': 0})
+        closedError = absError(target, country.get(closedMatch))
+        res.update({'predictedPropertyClosed': closedMatch, 'closedMeanAbsError': closedError})
+        res.update({'predictedPropertyOpen': matchedProperty, 'meanAbsError': error})
+        if error<threshold:
+            res.update({'predictedPropertyOpenThreshold': matchedProperty, 'meanAbsError': error})
+            positiveOpenThresholdInstances += 1
         else:
-            print "Prediction ", matchedProperty, "not in list of accepted properties"
-            res.update({'predictedRegion': "prediction_not_in_list", 'predicted_mape': None,'predicted_mape_label': None})
+            res.update({'predictedPropertyOpenThreshold': "no_region", 'meanAbsError': error})
+            negativeOpenThresholdInstances +=1
+        if closedError<threshold:
+            res.update({'predictedPropertyClosedThreshold': closedMatch, 'closedMeanAbsError': closedError})
+            positiveClosedThresholdInstances +=1
+        else:
+            res.update({'predictedPropertyClosedThreshold': "no_region", 'closedMeanAbsError': error})
+            negativeClosedThresholdInstances +=1
         predictionSentences.append(res)
 
 def mape_threshold_region_predictor(testSentences):
+
     for sentence in testSentences:
         update(sentence)
     return predictionSentences
@@ -193,106 +204,117 @@ def labelSlotFiltering(testLabels):
     return testLabels
 
 # `python src/main/testFeatures.py data/featuresKept.json data/output/testLabels.json data/output/hyperTestLabels.json $var data/freebaseTriples.json data/output/devLabels.json`
-# if __name__ == "__main__":
+if __name__ == "__main__":
 
-# np.seterr(all='print')
-rng = np.random.RandomState(101)
+    # np.seterr(all='print')
+    rng = np.random.RandomState(101)
 
-# properties = json.loads(open(os.path.dirname(sys.argv[1]).read()))
-with open(sys.argv[1]) as featuresKept:
-    properties = json.loads(featuresKept.read())
-print "We have ",len(properties),"features kept\n"
+    # properties = json.loads(open(os.path.dirname(sys.argv[1]).read()))
+    with open(sys.argv[1]) as featuresKept:
+        properties = json.loads(featuresKept.read())
+    print "We have ",len(properties),"features kept\n"
 
-threshold = float(sys.argv[4])
+    threshold = float(sys.argv[4])
 
-property2region2value = loadMatrix(sys.argv[5])
+    property2region2value = loadMatrix(sys.argv[5])
 
-# This step is necessary for getting data from xlsx
-dict_list = []
+    # This step is necessary for getting data from xlsx
+    dict_list = []
 
-testLabels = testSentenceLabels(dict_list)
-testLabels = labelSlotFiltering(testLabels)
+    testLabels = testSentenceLabels(dict_list)
+    testLabels = labelSlotFiltering(testLabels)
 
-cleanTestLabels = []
+    cleanTestLabels = []
 
-# Here we remove blanks and clean up the test set - note we ignore some properties because we are not sure if they contain a claim or not - ?
-for i, dataTriples in enumerate(testLabels):
-    if dataTriples['mape']!={} and dataTriples['parsedSentence']!={} and dataTriples['property']!={} and dataTriples['claim']!="?":
-        cleanTestLabels.append(dataTriples)
+    # Here we remove blanks and clean up the test set - note we ignore some properties because we are not sure if they contain a claim or not - ?
+    for i, dataTriples in enumerate(testLabels):
+        if dataTriples['mape']!={} and dataTriples['parsedSentence']!={} and dataTriples['property']!={} and dataTriples['claim']!="?":
+            cleanTestLabels.append(dataTriples)
 
-print "Total clean test labels is", len(cleanTestLabels),"\n"
+    print "Total clean test labels is", len(cleanTestLabels),"\n"
 
-properties.append("no_region")
+    properties.append("no_region")
 
-# Here I add the same predictor I used for the training data on the test data
-# I need the full properties again to do a prediciton
-cleanTestLabels = mape_threshold_region_predictor(cleanTestLabels)
+    # Here I add the same predictor I used for the training data on the test data
+    # I need the full properties again to do a prediciton
 
-finalTestLabels = []
-devLabels = []
-hyperTestLabels = []
-rng.shuffle(cleanTestLabels)
+    negativeOpenThresholdInstances = 0
+    positiveOpenThresholdInstances = 0
+    negativeClosedThresholdInstances = 0
+    positiveClosedThresholdInstances = 0
 
-propertiesCovered=[]
-'''
-TODO - make sure all statistical regions covered in the hyper test labels
-'''
-s = set(dataTriples['property'] for i, dataTriples in enumerate(cleanTestLabels))
+    cleanTestLabels = mape_threshold_region_predictor(cleanTestLabels)
 
-print "Here are the unique properties in the test labels\n"
-for x in s:
-    print x
-print "There are ", len(s), " properties\n"
+    print "Negative open threshold instances",negativeOpenThresholdInstances
+    print "Positive open threshold instances", positiveOpenThresholdInstances
+    print "Negative closed threshold instances",negativeClosedThresholdInstances
+    print "Positive closed threshold instances", positiveClosedThresholdInstances
 
-print "Here are the unique properties in the features kept\n"
-for x in properties:
-    print x
-print "There are ", len(properties), " properties\n"
+    finalTestLabels = []
+    devLabels = []
+    hyperTestLabels = []
+    rng.shuffle(cleanTestLabels)
 
-for i, dataTriples in enumerate(cleanTestLabels):
-    if i<500:
-        devLabels.append(dataTriples)
-    if i>=500 and i<1500:
-        hyperTestLabels.append(dataTriples)
-    if i>=1500 and i<len(cleanTestLabels):
-        finalTestLabels.append(dataTriples)
-print "Number of hyper sentences is", len(hyperTestLabels),"\n"
+    propertiesCovered=[]
+    '''
+    TODO - make sure all statistical regions covered in the hyper test labels
+    '''
+    s = set(dataTriples['property'] for i, dataTriples in enumerate(cleanTestLabels))
 
-print "Total positive mape labels in hyperLabels is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(hyperTestLabels) if dataTriples['mape_label']==1])
-print "Total negative mape labels in hyperLabels  is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(hyperTestLabels) if dataTriples['mape_label']==0])
-print "Total positive claim labels in hyperLabels is ",len([dataTriples['claim'] for a,dataTriples in enumerate(hyperTestLabels) if dataTriples['claim']==1])
-print "Total negative claim labels in hyperLabels is ",len([dataTriples['claim'] for a,dataTriples in enumerate(hyperTestLabels) if dataTriples['claim']==0])
-print "Total unique properties in hyperLabels with no property is ",len([dataTriples['property'] for a,dataTriples in enumerate(hyperTestLabels) if dataTriples['property']=={}])
+    print "Here are the unique properties in the test labels\n"
+    for x in s:
+        print x
+    print "There are ", len(s), " properties\n"
 
-uniquePropHyper = set(dataTriples['property'] for a,dataTriples in enumerate(hyperTestLabels))
-#
-# for x in s:
-#     print x
-print "There are ",len(uniquePropHyper), "unique properties covered in hyperTestLabels","\n"
+    print "Here are the unique properties in the features kept\n"
+    for x in properties:
+        print x
+    print "There are ", len(properties), " properties\n"
 
-print "Number of dev sentences is", len(devLabels)
+    for i, dataTriples in enumerate(cleanTestLabels):
+        if i<500:
+            devLabels.append(dataTriples)
+        if i>=500 and i<1500:
+            hyperTestLabels.append(dataTriples)
+        if i>=1500 and i<len(cleanTestLabels):
+            finalTestLabels.append(dataTriples)
+    print "Number of hyper sentences is", len(hyperTestLabels),"\n"
 
-print "Total positive mape labels in devLabels is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(devLabels) if dataTriples['mape_label']==1])
-print "Total negative mape labels in devLabels  is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(devLabels) if dataTriples['mape_label']==0])
-print "Total positive claim labels in devLabels is ",len([dataTriples['claim'] for a,dataTriples in enumerate(devLabels) if dataTriples['claim']==1])
-print "Total negative claim labels in devLabels is ",len([dataTriples['claim'] for a,dataTriples in enumerate(devLabels) if dataTriples['claim']==0])
-print "Total unique properties in devLabels with no property is ",len([dataTriples['property'] for a,dataTriples in enumerate(devLabels) if dataTriples['property']=={}])
+    print "Total positive mape labels in hyperLabels is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(hyperTestLabels) if dataTriples['mape_label']==1])
+    print "Total negative mape labels in hyperLabels  is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(hyperTestLabels) if dataTriples['mape_label']==0])
+    print "Total positive claim labels in hyperLabels is ",len([dataTriples['claim'] for a,dataTriples in enumerate(hyperTestLabels) if dataTriples['claim']==1])
+    print "Total negative claim labels in hyperLabels is ",len([dataTriples['claim'] for a,dataTriples in enumerate(hyperTestLabels) if dataTriples['claim']==0])
+    print "Total unique properties in hyperLabels with no property is ",len([dataTriples['property'] for a,dataTriples in enumerate(hyperTestLabels) if dataTriples['property']=={}])
 
-uniquePropDev = set(dataTriples['property'] for a,dataTriples in enumerate(devLabels))
-#
-# for x in s:
-#     print x
-print "There are ",len(uniquePropDev), "unique properties covered in hyperTestLabels","\n"
+    uniquePropHyper = set(dataTriples['property'] for a,dataTriples in enumerate(hyperTestLabels))
+    #
+    # for x in s:
+    #     print x
+    print "There are ",len(uniquePropHyper), "unique properties covered in hyperTestLabels","\n"
+
+    print "Number of dev sentences is", len(devLabels)
+
+    print "Total positive mape labels in devLabels is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(devLabels) if dataTriples['mape_label']==1])
+    print "Total negative mape labels in devLabels  is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(devLabels) if dataTriples['mape_label']==0])
+    print "Total positive claim labels in devLabels is ",len([dataTriples['claim'] for a,dataTriples in enumerate(devLabels) if dataTriples['claim']==1])
+    print "Total negative claim labels in devLabels is ",len([dataTriples['claim'] for a,dataTriples in enumerate(devLabels) if dataTriples['claim']==0])
+    print "Total unique properties in devLabels with no property is ",len([dataTriples['property'] for a,dataTriples in enumerate(devLabels) if dataTriples['property']=={}])
+
+    uniquePropDev = set(dataTriples['property'] for a,dataTriples in enumerate(devLabels))
+    #
+    # for x in s:
+    #     print x
+    print "There are ",len(uniquePropDev), "unique properties covered in devLabels","\n"
 
 
-with open(sys.argv[2], "wb") as out:
-        #Links the sentences to the region-value pairs
-        json.dump(finalTestLabels, out,indent=4)
+    with open(sys.argv[2], "wb") as out:
+            #Links the sentences to the region-value pairs
+            json.dump(finalTestLabels, out,indent=4)
 
-with open(sys.argv[3], "wb") as out:
-        #Links the sentences to the region-value pairs
-        json.dump(hyperTestLabels, out,indent=4)
+    with open(sys.argv[3], "wb") as out:
+            #Links the sentences to the region-value pairs
+            json.dump(hyperTestLabels, out,indent=4)
 
-with open(sys.argv[6], "wb") as out:
-        #Links the sentences to the region-value pairs
-        json.dump(devLabels, out,indent=4)
+    with open(sys.argv[6], "wb") as out:
+            #Links the sentences to the region-value pairs
+            json.dump(devLabels, out,indent=4)
