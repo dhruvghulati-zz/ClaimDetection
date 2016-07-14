@@ -65,32 +65,20 @@ def training_features(inputSentences):
                 binary_train_labels.append(1)
             else:
                 binary_train_labels.append(0)
-            if sentence['predictedPropertyClosed'] != "unmatched_region":
-                # Closed evaluation only include certain training sentences
-                closed_train_wordlist.append(" ".join(sentence_to_words(sentence['parsedSentence'], True)))
-                closed_train_property_labels.append(sentence['predictedPropertyClosed'])
-                if sentence['predictedPropertyClosedThreshold'] != "no_region":
-                    binary_closed_train_labels.append(1)
-                    closed_train_property_labels_threshold.append(sentence['predictedPropertyClosedThreshold'])
-                else:
-                    binary_closed_train_labels.append(0)
-                    closed_train_property_labels_threshold.append("no_region")
-                    # binary_train_labels.append(0)
-                    # train_property_labels.append("no_region")
+            # Closed evaluation only include certain training sentences
+            closed_train_wordlist.append(" ".join(sentence_to_words(sentence['parsedSentence'], True)))
+            closed_train_property_labels.append(sentence['predictedPropertyClosed'])
+            closed_train_property_labels_threshold.append(sentence['predictedPropertyClosedThreshold'])
+            if sentence['predictedPropertyClosedThreshold'] != "no_region":
+                binary_closed_train_labels.append(1)
+            else:
+                binary_closed_train_labels.append(0)
     # print "These are the clean words in the training sentences: ", train_wordlist
     # print "These are the labels in the training sentences: ", train_labels
     print "Creating the bag of words...\n"
-    # fit_transform() does two functions: First, it fits the model
-    # and learns the vocabulary; second, it transforms our training data
-    # into feature vectors. The input to fit_transform should be a list of
-    # strings.
     train_data_features = vectorizer.fit_transform(train_wordlist)
     closed_train_data_features = vectorizer.fit_transform(closed_train_wordlist)
 
-    # Numpy arrays are easy to work with, so convert the result to an
-    # array
-    # '''TODO apparently I should keep this as a sparse matrix - see Pydata chat
-    # '''
     train_data_features = train_data_features.toarray()
     closed_train_data_features = closed_train_data_features.toarray()
 
@@ -275,21 +263,21 @@ print "There are ", binary_closed_train_labels.count(0), "negative closed mape l
 # print len(train_data_features),"sets of training features"
 
 # Initialize a Logistic Regression on the statistical region
-binary_logit = LogisticRegression(fit_intercept=True, class_weight='auto')
+# binary_logit = LogisticRegression(fit_intercept=True, class_weight='auto')
 
 multi_logit = LogisticRegression(fit_intercept=True, class_weight='auto', multi_class='multinomial', solver='newton-cg')
 
-# Fit the logistic classifiers to the training set, using the bag of words as
-# features and the sentiment labels as the response variable
+# # Fit the logistic classifiers to the training set, using the bag of words as
+# # features and the sentiment labels as the response variable
+# #
+# print "Fitting the open binary logistic regression model...\n"
+# # This may take a few minutes to run
+# # This seems to be wrong, based on empty training labels
+# binary_logit = binary_logit.fit(train_data_features, binary_train_labels)
 #
-print "Fitting the open binary logistic regression model...\n"
-# This may take a few minutes to run
-# This seems to be wrong, based on empty training labels
-binary_logit = binary_logit.fit(train_data_features, binary_train_labels)
-
-print "Fitting the closed binary logistic regression model...\n"
-
-binary_closed_logit = binary_logit.fit(closed_train_data_features, binary_closed_train_labels)
+# print "Fitting the closed binary logistic regression model...\n"
+#
+# binary_closed_logit = binary_logit.fit(closed_train_data_features, binary_closed_train_labels)
 #
 # print "These are the training labels\n"
 #
@@ -329,13 +317,13 @@ print len(test_data_features), "sets of test features"
 
 print test_data_features
 
-print "There are ", binary_test_labels.count(1), "positive mape labels"
-print "There are ", binary_test_labels.count(0), "negative mape labels"
-
-# Use the logistic regression to make predictions
-print "Predicting binary test labels...\n"
-
-binary_logit_result = binary_logit.predict(test_data_features)
+# print "There are ", binary_test_labels.count(1), "positive mape labels"
+# print "There are ", binary_test_labels.count(0), "negative mape labels"
+#
+# # Use the logistic regression to make predictions
+# print "Predicting binary test labels...\n"
+#
+# binary_logit_result = binary_logit.predict(test_data_features)
 
 print "Predicting open multinomial test labels without threshold...\n"
 
@@ -355,12 +343,12 @@ y_multi_logit_result_closed_threshold = np.array(closed_threshold_multi_logit.pr
 
 # TODO - this may not be relevant any more
 # Convert the multi logit result to binary evaluation
-binary_multi_logit_result = []
-for result in y_multi_logit_result_open_threshold:
-    if result == "no_region":
-        binary_multi_logit_result.append(0)
-    else:
-        binary_multi_logit_result.append(1)
+# binary_multi_logit_result = []
+# for result in y_multi_logit_result_open_threshold:
+#     if result == "no_region":
+#         binary_multi_logit_result.append(0)
+#     else:
+#         binary_multi_logit_result.append(1)
 
 # Load in the test data
 test = pd.DataFrame(finalTestSentences)
@@ -378,8 +366,8 @@ y_multi_true = np.array(test['property'])
 y_true_claim = np.array(test['claim'])
 
 # These are our predictions
-y_logpred = binary_logit_result
-y_multilogpred_binary = binary_multi_logit_result
+# y_logpred = binary_logit_result
+# y_multilogpred_binary = binary_multi_logit_result
 
 y_multi_logit_result_open_binary = []
 y_multi_logit_result_open_threshold_binary = []
@@ -391,10 +379,10 @@ y_andreas_mape = test['mape_label']
 
 # TODO - we shouldn't have to say if 1 or 0 before'
 # This is the test labels for distant supervision
-y_distant_sv_property_openMAPE = test['predictedOpenMAPELabel']
-y_distant_sv_property_openThresholdMAPE = test['predictedOpenThresholdMAPELabel']
-y_distant_sv_property_closedMAPE = test['predictedClosedMAPELabel']
-y_distant_sv_property_closedThresholdMAPE = test['predictedClosedThresholdMAPELabel']
+# y_distant_sv_property_openMAPE = test['predictedOpenMAPELabel']
+# y_distant_sv_property_openThresholdMAPE = test['predictedOpenThresholdMAPELabel']
+# y_distant_sv_property_closedMAPE = test['predictedClosedMAPELabel']
+# y_distant_sv_property_closedThresholdMAPE = test['predictedClosedThresholdMAPELabel']
 
 y_distant_sv_property_open = test['predictedPropertyOpen']
 y_distant_sv_property_openThreshold = test['predictedPropertyOpenThreshold']
@@ -408,11 +396,24 @@ y_closedThreshold_distant_sv_to_binary = []
 
 # These are the random baselines
 unique_train_labels = set(train_property_labels)
+unique_train_labels_threshold = set(train_property_labels_threshold)
+closed_unique_train_labels = set(closed_train_property_labels)
+closed_unique_train_labels_threshold = set(closed_train_property_labels_threshold)
+
+
+
+
 # print unique_train_labels
 # Categorical random baseline
 categorical_random = rng.choice(list(unique_train_labels), len(finalTestSentences))
+categorical_random_threshold = rng.choice(list(unique_train_labels_threshold), len(finalTestSentences))
+closed_categorical_random = rng.choice(list(closed_unique_train_labels), len(finalTestSentences))
+closed_categorical_random_threshold = rng.choice(list(closed_unique_train_labels_threshold), len(finalTestSentences))
 # print "Categorical random is ", categorical_random
 y_cat_random_to_binary = []
+y_cat_random_to_binary_threshold = []
+y_closed_random_to_binary = []
+y_closedCat_random_to_binary_threshold = []
 # Random 0 and 1
 random_result = rng.randint(2, size=len(finalTestSentences))
 positive_result = np.ones(len(finalTestSentences))
@@ -423,13 +424,17 @@ y_negpred = negative_result
 
 # TODO - this should be cleaner code
 # Convert the categorical predictions to binary based on if matching property
-for open_sv_property, closed_sv_property, open_threshold_sv_property, closed_threshold_sv_property, \
-    open_multinomial_property, open_threshold_multinomial_property, closed_multinomial_property, closed_threshold_multinomial_property, \
-    cat_random, true_property in \
-        zip(y_distant_sv_property_open, y_distant_sv_property_closed, y_distant_sv_property_openThreshold,
+for open_sv_property, closed_sv_property, open_threshold_sv_property, closed_threshold_sv_property, open_multinomial_property, open_threshold_multinomial_property, closed_multinomial_property, closed_threshold_multinomial_property, cat_random, cat_random_threshold,\
+    closed_cat_random,\
+    closed_cat_random_threshold,\
+    true_property in zip(y_distant_sv_property_open, y_distant_sv_property_closed,y_distant_sv_property_openThreshold,
             y_distant_sv_property_closedThreshold, y_multi_logit_result_open, y_multi_logit_result_open_threshold,
             y_multi_logit_result_closed, y_multi_logit_result_closed_threshold,
-            categorical_random, y_multi_true):
+            categorical_random,
+            categorical_random_threshold,
+            closed_categorical_random,
+            closed_categorical_random_threshold,
+            y_multi_true):
     if open_sv_property == true_property:
         y_open_distant_sv_to_binary.append(1)
     else:
@@ -466,34 +471,32 @@ for open_sv_property, closed_sv_property, open_threshold_sv_property, closed_thr
         y_cat_random_to_binary.append(1)
     else:
         y_cat_random_to_binary.append(0)
+    if cat_random_threshold == true_property:
+        y_cat_random_to_binary_threshold.append(1)
+    else:
+        y_cat_random_to_binary_threshold.append(0)
+    if closed_cat_random == true_property:
+        y_closed_random_to_binary.append(1)
+    else:
+        y_closed_random_to_binary.append(0)
+    if closed_cat_random_threshold == true_property:
+        y_closedCat_random_to_binary_threshold.append(1)
+    else:
+        y_closedCat_random_to_binary_threshold.append(0)
 
-# print "Binary multinomial prediction is ", y_multilogpred_to_binary
-# print "Binary distant supervision prediction is ",y_distant_sv_to_binary
-
-# propEvaluation(y_multi_true,y_multilogpred,y_true_claim)
-#
-# propEvaluation(y_multi_true,y_distant_sv_property,y_true_claim)
-#
-# print "Precision, recall and F1 and support for Andreas model are ", precision_recall_fscore_support(y_pospred, y_true_claim, pos_label=None,average='macro'),"\n"
-
-
-# print "True claim labels are", len(y_true_claim)
-# # print y_true_claim
-# print "Random prediction is",len(y_randpred)
-# print y_randpred
-
-# csv_path = open(sys.argv[3],"wb")
 
 output = pd.DataFrame(data=dict(parsed_sentence=test['parsedSentence'],
                                 features=clean_test_sentences,
+
                                 open_property_prediction=y_multi_logit_result_open,
                                 open_property_prediction_withMAPEthreshold=y_multi_logit_result_open_threshold,
-                                closed_property_prediction=y_multi_logit_result_closed,
-                                closed_property_prediction_withMAPEthreshold=y_multi_logit_result_closed_threshold,
                                 open_property_prediction_toBinary=y_multi_logit_result_open_binary,
                                 open_property_prediction_withMAPEthreshold_toBinary=y_multi_logit_result_open_threshold_binary,
+                                closed_property_prediction=y_multi_logit_result_closed,
+                                closed_property_prediction_withMAPEthreshold=y_multi_logit_result_closed_threshold,
                                 closed_property_prediction_toBinary=y_multi_logit_result_closed_binary,
                                 closed_property_prediction_withMAPEthreshold_toBinary=y_multi_logit_result_closed_threshold_binary,
+
                                 distant_supervision_open=y_distant_sv_property_open,
                                 distant_supervision_open_withMAPEThreshold=y_distant_sv_property_openThreshold,
                                 distant_supervision_closed=y_distant_sv_property_closed,
@@ -502,9 +505,17 @@ output = pd.DataFrame(data=dict(parsed_sentence=test['parsedSentence'],
                                 distant_supervision_open_withMAPEThreshold_toBinary=y_openThreshold_distant_sv_to_binary,
                                 distant_supervision_closed_toBinary=y_closed_distant_sv_to_binary,
                                 distant_supervision_closed_withMAPEThreshold_toBinary=y_closedThreshold_distant_sv_to_binary,
+
                                 random_binary_label=random_result,
                                 random_categorical_label=categorical_random,
                                 random_categorical_label_toBinary=y_cat_random_to_binary,
+                                random_categorical_label_threshold=categorical_random_threshold,
+                                random_categorical_label_threshold_toBinary=y_cat_random_to_binary_threshold,
+                                closed_random_categorical_label=closed_categorical_random,
+                                closed_random_categorical_label_toBinary=y_closed_random_to_binary,
+                                closed_random_categorical_label_threshold=closed_categorical_random_threshold,
+                                closed_random_categorical_label_toBinary_threshold=y_closedCat_random_to_binary_threshold,
+
                                 test_data_mape_label=test['mape_label'],
                                 claim_label=y_true_claim,
                                 test_data_property_label=test['property'],
@@ -541,7 +552,37 @@ cat_random_data = {'precision': cat_random_precision,
                    'recall': cat_random_recall,
                    'f1': cat_random_f1}
 
-cat_randomDF = pd.DataFrame(cat_random_data, index=['Categorical Random Baseline (to Binary)'])
+cat_randomDF = pd.DataFrame(cat_random_data, index=['Categorical Random Baseline'])
+
+cat_random_precision_threshold = precision_score(y_true_claim, y_cat_random_to_binary_threshold)
+cat_random_recall_threshold = recall_score(y_true_claim, y_cat_random_to_binary_threshold)
+cat_random_f1_threshold = f1_score(y_true_claim, y_cat_random_to_binary_threshold)
+
+cat_random_data_threshold = {'precision': cat_random_precision_threshold,
+               'recall': cat_random_recall_threshold,
+               'f1': cat_random_f1_threshold}
+
+cat_randomDF_threshold = pd.DataFrame(cat_random_data_threshold, index=['Categorical Random Baseline w/ Threshold'])
+
+closedCat_random_precision = precision_score(y_true_claim, y_closed_random_to_binary)
+closedCat_random_recall = recall_score(y_true_claim, y_closed_random_to_binary)
+closedCat_random_f1 = f1_score(y_true_claim, y_closed_random_to_binary)
+
+closedCat_random_data = {'precision': closedCat_random_precision,
+               'recall': closedCat_random_recall,
+               'f1': closedCat_random_f1}
+
+closedCat_randomDF = pd.DataFrame(closedCat_random_data, index=['Closed Category Random Baseline'])
+
+closedCat_random_precision_threshold = precision_score(y_true_claim, y_closedCat_random_to_binary_threshold)
+closedCat_random_recall_threshold = recall_score(y_true_claim, y_closedCat_random_to_binary_threshold)
+closedCat_random_f1_threshold = f1_score(y_true_claim, y_closedCat_random_to_binary_threshold)
+
+closedCat_random_data_threshold = {'precision': closedCat_random_precision_threshold,
+               'recall': closedCat_random_recall_threshold,
+               'f1': closedCat_random_f1_threshold}
+
+closedCat_randomDF_threshold = pd.DataFrame(closedCat_random_data_threshold, index=['Closed Category Random Baseline w/ Threshold'])
 
 andreas_precision = precision_score(y_true_claim, y_pospred)
 andreas_recall = recall_score(y_true_claim, y_pospred)

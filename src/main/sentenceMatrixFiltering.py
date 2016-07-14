@@ -86,3 +86,5 @@ print "Writing to filtered file\n"
 
 with open(sys.argv[3], "wb") as out:
     json.dump(pattern2locations2values, out,indent=4)
+
+# TODO - generate a CSV for labelling
