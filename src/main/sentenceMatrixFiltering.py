@@ -11,7 +11,7 @@
 
 
 import json
-import numpy
+import numpy as np
 import sys
 
 '''
@@ -20,17 +20,21 @@ TODO - this needs to account for any further cleaning beyond aliasing we need to
 
 # We distinguish between the two by re- quiring each region-pattern combination to have appeared at least twice.
 
-# python src/main/sentenceMatrixFiltering.py data/output/sentenceRegionValue.json data/aliases.json data/sentenceMatrixFiltered.json?
+# python src/main/sentenceMatrixFiltering.py data/output/sentenceRegionValue.json data/aliases.json data/sentenceMatrixFiltered.json
 
 
 # helps detect errors
-numpy.seterr(all='raise')
+np.seterr(all='raise')
 
 # load the file
 with open(sys.argv[1]) as jsonFile:
     pattern2locations2values = json.loads(jsonFile.read())
 
-print "patterns before filtering:", len(pattern2locations2values)
+# # load the file
+# with open(sys.argv[4]) as sentenceSlotsFull:
+#     fullSentenceSlots = json.loads(sentenceSlotsFull.read())
+
+print "sentences before filtering:", len(pattern2locations2values['sentences'])
 
 #load the file
 print "Loading the aliases file\n"
@@ -60,7 +64,7 @@ for alias, region in alias2region.items():
 
 # ok, let's traverse now all the patterns and any locations we find we match them case independently to the aliases and replace them with the location
 
-print "Applying aliases\n"
+print "Applying aliases for model\n"
 
 for index, dataTriples in enumerate(pattern2locations2values["sentences"]):
     # print index
@@ -82,9 +86,41 @@ for index, dataTriples in enumerate(pattern2locations2values["sentences"]):
         # regions2values.append({region: value})
 # print pattern2locations2values
 
-print "Writing to filtered file\n"
+# print "Applying aliases for manual labelling\n"
+#
+# for index, dataTriples in enumerate(fullSentenceSlots):
+#     # print index
+#     # so here are the locations
+#     # we must be careful in case two or more locations are collapsed to the same region
+#
+#     for i,location in enumerate(dataTriples['regions']):
+#         # print location
+#         # print value
+#         region = location
+#     #         # if the location has an alias
+#         if location in alias2region:
+#             # get it
+#             region = alias2region[location]
+#             # print "New region is ", region
+#         elif location.lower() in alias2region:
+#             region = alias2region[location.lower()]
+#             # print "New region is ", region
+#         # if we haven't added it to the regions
+#         dataTriples['regions'][i] = region
+#         # location = region
+#         # np.put(dataTriples['regions'], i, region)
+#         # regions2values.append({region: value})
+# # print pattern2locations2values
+
+
+
+print "Writing to filtered file for model\n"
 
 with open(sys.argv[3], "wb") as out:
     json.dump(pattern2locations2values, out,indent=4)
 
-# TODO - generate a CSV for labelling
+print "Writing to filtered file for manual labelling\n"
+
+# with open(sys.argv[5], "wb") as out:
+#     json.dump(fullSentenceSlots, out,indent=4)
+

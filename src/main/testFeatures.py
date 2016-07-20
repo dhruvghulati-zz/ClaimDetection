@@ -111,8 +111,8 @@ def testSentenceLabels(dict_list):
     temp_properties =[]
     for i, property in enumerate(properties):
         temp_properties.append(property.split("/")[3])
-        # This was the issue as I had hard coded the location of these files ../../
-    for subdir, dirs, files in os.walk('../../data/labeled_claims'):
+        # TODO - Command line issue as I had hard coded the location of these files ../../, in command line remove
+    for subdir, dirs, files in os.walk('data/labeled_claims'):
         # This is causing errors
 
         for file in files:
@@ -193,7 +193,7 @@ def labelSlotFiltering(testLabels):
     print "Total negative labels is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(testLabels) if dataTriples['mape_label']==0])
     print "Total test labels with parsed sentences is ",len([dataTriples['parsedSentence'] for a,dataTriples in enumerate(testLabels) if dataTriples['parsedSentence']!={}])
     print "Total test labels with no mape is ",len([dataTriples['mape'] for a,dataTriples in enumerate(testLabels) if dataTriples['mape']=={}])
-    print "Total test labels with no property is ",len([dataTriples['property'] for a,dataTriples in enumerate(testLabels) if dataTriples['property']=={}])
+    # print "Total test labels with no property is ",len([dataTriples['property'] for a,dataTriples in enumerate(testLabels) if dataTriples['property']=={}])
     # Here I give "no region" to any sentence not a claim
     for i, dataTriples in enumerate(testLabels):
         # if dataTriples['claim']==0 and dataTriples['claim'] is not None:
@@ -284,7 +284,7 @@ if __name__ == "__main__":
     print "Total negative mape labels in hyperLabels  is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(hyperTestLabels) if dataTriples['mape_label']==0])
     print "Total positive claim labels in hyperLabels is ",len([dataTriples['claim'] for a,dataTriples in enumerate(hyperTestLabels) if dataTriples['claim']==1])
     print "Total negative claim labels in hyperLabels is ",len([dataTriples['claim'] for a,dataTriples in enumerate(hyperTestLabels) if dataTriples['claim']==0])
-    print "Total unique properties in hyperLabels with no property is ",len([dataTriples['property'] for a,dataTriples in enumerate(hyperTestLabels) if dataTriples['property']=={}])
+    # print "Total unique properties in hyperLabels with no property is ",len([dataTriples['property'] for a,dataTriples in enumerate(hyperTestLabels) if dataTriples['property']=={}])
 
     uniquePropHyper = set(dataTriples['property'] for a,dataTriples in enumerate(hyperTestLabels))
     #
@@ -298,7 +298,7 @@ if __name__ == "__main__":
     print "Total negative mape labels in devLabels  is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(devLabels) if dataTriples['mape_label']==0])
     print "Total positive claim labels in devLabels is ",len([dataTriples['claim'] for a,dataTriples in enumerate(devLabels) if dataTriples['claim']==1])
     print "Total negative claim labels in devLabels is ",len([dataTriples['claim'] for a,dataTriples in enumerate(devLabels) if dataTriples['claim']==0])
-    print "Total unique properties in devLabels with no property is ",len([dataTriples['property'] for a,dataTriples in enumerate(devLabels) if dataTriples['property']=={}])
+    # print "Total unique properties in devLabels with no property is ",len([dataTriples['property'] for a,dataTriples in enumerate(devLabels) if dataTriples['property']=={}])
 
     uniquePropDev = set(dataTriples['property'] for a,dataTriples in enumerate(devLabels))
     #

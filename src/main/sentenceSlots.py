@@ -105,12 +105,14 @@ if __name__ == "__main__":
     # one json to rule them all, the sentenceRegionValue.json
     outputFile = sys.argv[2]
 
+    labelFile = sys.argv[4]
+
     # this forms the columns using the lexicalized dependency and surface patterns
     pattern2location2values = {}
 
     sentences2location2values = {"sentences": []}
 
-    parsedsentences2location2values = {}
+    sentences2location2valuesSlots = []
 
     print str(len(jsonFiles)) + " files to process"
 
@@ -151,6 +153,17 @@ if __name__ == "__main__":
                 # for each pair of location and number
                 # get the pairs of each and find their dependency paths (might be more than one)
 
+                slotSampleTokens = sample.split()
+
+                slotSentenceDict = {}
+
+                slotSentenceDict["sentence"] = sample
+
+                slotSentenceDict["regions"] = []
+
+                slotSentenceDict["values"] = []
+
+
                 for locationTokenIDs, location in tokenIDs2location.items():
                     for numberTokenIDs, number in tokenIDs2number.items():
                         # print "Location token IDs are: ", locationTokenIDs
@@ -159,9 +172,14 @@ if __name__ == "__main__":
                         # print "Number is: ", number
                         sampleTokens = sample.split()
                         sentenceDict = {}
+
                         sentenceDict["sentence"] = sample
 
                         sentenceDict["location-value-pair"] = {location:number}
+
+                        slotSentenceDict["regions"].append(location)
+
+                        slotSentenceDict["values"].append(number)
 
                         # print "Sample tokens are: ", sampleTokens
                         for numberTokenID in numberTokenIDs:
@@ -170,11 +188,19 @@ if __name__ == "__main__":
                                 # print "Location token ID is : ",locationTokenID
                                 sampleTokens[locationTokenID] = "LOCATION_SLOT"
                                 sampleTokens[numberTokenID] = "NUMBER_SLOT"
+                                slotSampleTokens[locationTokenID] = "LOCATION_SLOT"
+                                slotSampleTokens[numberTokenID] = "NUMBER_SLOT"
                                 slotSentence = (" ").join(sampleTokens)
-
                                 sentenceDict["parsedSentence"] = slotSentence
                         sentences2location2values["sentences"].append(sentenceDict)
+                slotSentenceSlots = (" ").join(slotSampleTokens)
+                slotSentenceDict["parsedSentence"] = slotSentenceSlots
+                sentences2location2valuesSlots.append(slotSentenceDict)
 
     with open(outputFile, "wb") as out:
         #Links the sentences to the region-value pairs
         json.dump(sentences2location2values, out,indent=4)
+
+    with open(labelFile, "wb") as out:
+        #Links the sentences to the region-value pairs
+        json.dump(sentences2location2valuesSlots, out,indent=4)
