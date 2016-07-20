@@ -36,7 +36,7 @@ with open(sys.argv[2], 'w') as csvfile:
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     writer.writeheader()
     # [50000:60000]
-    for sentence in sentence2locations2values:
+    for sentence in sentence2locations2values[50000:60000]:
         sentence = unicode(sentence['parsedSentence']).encode("utf-8")
         # print sentence['parsedSentence']
         writer.writerow({'sentence': sentence})

@@ -108,6 +108,7 @@ def training_features(inputSentences):
 
     return train_data_features
 
+
 def test_features(testSentences):
     global vectorizer
 
@@ -122,6 +123,7 @@ def test_features(testSentences):
     test_data_features = test_data_features.toarray()
 
     return test_data_features
+
 
 def probabilityThreshold(classifier, numberProperties, trainingFeatures, trainingLabels, testFeatures, testCatLabels):
     print "Number of properties is", numberProperties
@@ -173,8 +175,8 @@ def probabilityThreshold(classifier, numberProperties, trainingFeatures, trainin
 # Find index of the true label for the sentence, and if that same index for that sentence is one, return the classifier class, else no region
 
 if __name__ == "__main__":
-# training data
-# load the sentence file for training
+    # training data
+    # load the sentence file for training
 
     with open(sys.argv[1]) as trainingSentences:
         pattern2regions = json.loads(trainingSentences.read())
@@ -226,9 +228,11 @@ if __name__ == "__main__":
     print "There are ", train_property_labels_threshold.count("no_region"), "negative open mape threshold labels"
     print "There are ", len(closed_train_property_labels_threshold) - closed_train_property_labels_threshold.count(
         "no_region"), "positive closed mape threshold labels"
-    print "There are ", closed_train_property_labels_threshold.count("no_region"), "negative closed mape threshold labels\n"
+    print "There are ", closed_train_property_labels_threshold.count(
+        "no_region"), "negative closed mape threshold labels\n"
 
-    multi_logit = LogisticRegression(fit_intercept=True, class_weight='auto', multi_class='multinomial', solver='newton-cg')
+    multi_logit = LogisticRegression(fit_intercept=True, class_weight='auto', multi_class='multinomial',
+                                     solver='newton-cg')
 
     multi_logit_threshold = LogisticRegression(fit_intercept=True, class_weight='auto', multi_class='multinomial',
                                                solver='newton-cg')
@@ -236,7 +240,8 @@ if __name__ == "__main__":
     closed_multi_logit = LogisticRegression(fit_intercept=True, class_weight='auto', multi_class='multinomial',
                                             solver='newton-cg')
 
-    closed_multi_logit_threshold = LogisticRegression(fit_intercept=True, class_weight='auto', multi_class='multinomial',
+    closed_multi_logit_threshold = LogisticRegression(fit_intercept=True, class_weight='auto',
+                                                      multi_class='multinomial',
                                                       solver='newton-cg')
 
     # Fit the logistic classifiers to the training set, using the bag of words as features
@@ -252,7 +257,8 @@ if __name__ == "__main__":
     print "Fitting the closed multinomial logistic regression model without MAPE threshold...\n"
     closed_multi_logit = closed_multi_logit.fit(train_data_features, closed_train_property_labels)
     print "Fitting the closed multinomial logistic regression model with MAPE threshold...\n"
-    closed_threshold_multi_logit = closed_multi_logit_threshold.fit(train_data_features, closed_train_property_labels_threshold)
+    closed_threshold_multi_logit = closed_multi_logit_threshold.fit(train_data_features,
+                                                                    closed_train_property_labels_threshold)
 
     # Create an empty list and append the clean reviews one by one
     clean_test_sentences = []
@@ -289,8 +295,14 @@ if __name__ == "__main__":
         set(train_property_labels)), train_data_features, train_property_labels, test_data_features, y_multi_true)
 
     print "Predicting open multinomial test labels with/without MAPE threshold using probability based predictor...\n"
-    y_multi_logit_result_closed_prob, y_multi_logit_result_closed_prob_binary = probabilityThreshold(closed_multi_logit, len(
-        set(closed_train_property_labels)), train_data_features, closed_train_property_labels, test_data_features, y_multi_true)
+    y_multi_logit_result_closed_prob, y_multi_logit_result_closed_prob_binary = probabilityThreshold(closed_multi_logit,
+                                                                                                     len(
+                                                                                                         set(
+                                                                                                             closed_train_property_labels)),
+                                                                                                     train_data_features,
+                                                                                                     closed_train_property_labels,
+                                                                                                     test_data_features,
+                                                                                                     y_multi_true)
 
     # TODO - this is not needed now
     # These are our predictions
@@ -333,7 +345,8 @@ if __name__ == "__main__":
     categorical_random = rng.choice(list(unique_train_labels), len(finalTestSentences))
     categorical_random_threshold = rng.choice(list(unique_train_labels_threshold), len(finalTestSentences))
     closed_categorical_random = rng.choice(list(closed_unique_train_labels), len(finalTestSentences))
-    closed_categorical_random_threshold = rng.choice(list(closed_unique_train_labels_threshold), len(finalTestSentences))
+    closed_categorical_random_threshold = rng.choice(list(closed_unique_train_labels_threshold),
+                                                     len(finalTestSentences))
     # print "Categorical random is ", categorical_random
     y_cat_random_to_binary = []
     y_cat_random_to_binary_threshold = []
@@ -527,27 +540,26 @@ if __name__ == "__main__":
         evaluation(y_true_claim, result, testSet, threshold)
 
     columns = list(['Binary_Random_Baseline',
-                            'Open_Categorical_Random_Baseline',
-                            'Open_Categorical_Random Baseline_w_Threshold',
-                            'Closed_Categorical_Random Baseline',
-                            'Closed_Categorical_Random Baseline_w_Threshold',
-                            'Previous_Model',
-                            'Negative_Naive_Baseline',
-                            'Open_Property_Distant_Supervision_Model',
-                            'Open_Property_MAPE_Threshold_Distant_Supervision_Model',
-                            'Closed_Property_Distant_Supervision_Model',
-                            'Closed_Property_MAPE_Threshold_Distant_Supervision_Model',
-                            'Open_Property_Bag_of_Words_Multinomial_Logistic_Regression_w_Binary_Evaluation',
-                            'Open_Property_Bag_of_Words_Multinomial_Logistic_Regression_w_Binary_Evaluation_&_MAPE_Threshold',
-                            'Closed_Property_Bag_of_Words_Multinomial_Logistic_Regression_w_Binary_Evaluation',
-                            'Closed_Property_Bag_of_Words_Multinomial_Logistic_Regression_w_Binary_Evaluation_&_MAPE_Threshold',
-                            'Open_Property_Probability_Prediction',
-                            'Closed_Property_Probability_Prediction'
-                            ])
+                    'Open_Categorical_Random_Baseline',
+                    'Open_Categorical_Random Baseline_w_Threshold',
+                    'Closed_Categorical_Random Baseline',
+                    'Closed_Categorical_Random Baseline_w_Threshold',
+                    'Previous_Model',
+                    'Negative_Naive_Baseline',
+                    'Open_Property_Distant_Supervision_Model',
+                    'Open_Property_MAPE_Threshold_Distant_Supervision_Model',
+                    'Closed_Property_Distant_Supervision_Model',
+                    'Closed_Property_MAPE_Threshold_Distant_Supervision_Model',
+                    'Open_Property_Bag_of_Words_Multinomial_Logistic_Regression_w_Binary_Evaluation',
+                    'Open_Property_Bag_of_Words_Multinomial_Logistic_Regression_w_Binary_Evaluation_&_MAPE_Threshold',
+                    'Closed_Property_Bag_of_Words_Multinomial_Logistic_Regression_w_Binary_Evaluation',
+                    'Closed_Property_Bag_of_Words_Multinomial_Logistic_Regression_w_Binary_Evaluation_&_MAPE_Threshold',
+                    'Open_Property_Probability_Prediction',
+                    'Closed_Property_Probability_Prediction'
+                    ])
 
     # summaryDF.set_index(['A','B'])
     summaryDF.index = columns
-
 
     print summaryDF
     #
@@ -560,15 +572,15 @@ if __name__ == "__main__":
             # summaryDF = pd.concat([df_csv,summaryDF],axis=1,ignore_index=True)
             with open(sys.argv[5], 'a') as f:
                 # Need to empty file contents now
-                summaryDF.to_csv(path_or_buf=f,encoding='utf-8',mode='a',header=False)
+                summaryDF.to_csv(path_or_buf=f, encoding='utf-8', mode='a', header=False)
                 f.close()
         else:
             print "empty file"
             with open(sys.argv[5], 'w+') as f:
-                summaryDF.to_csv(path_or_buf=f,encoding='utf-8')
+                summaryDF.to_csv(path_or_buf=f, encoding='utf-8')
                 f.close()
     except OSError:
         print "No file"
         with open(sys.argv[5], 'w+') as f:
-            summaryDF.to_csv(path_or_buf=f,encoding='utf-8')
+            summaryDF.to_csv(path_or_buf=f, encoding='utf-8')
             f.close()
