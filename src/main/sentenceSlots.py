@@ -7,6 +7,7 @@ import copy
 import numpy
 import codecs
 import itertools
+from nltk.text import Text
 '''
 TODO -
 '''
@@ -94,18 +95,22 @@ def getLocations(sentence):
     return tokenIDs2location
 
 
-# python src/main/sentenceSlots.py data/train_jsons data/output/sentenceRegionValue.json data/locationNames data/test_jsons data/output/testData.json
+# python src/main/sentenceSlots.py data/train_jsons data/output/sentenceRegionValue.json data/locationNames data/test_jsons data/output/testData.json data/output/sentenceSlotsFull.json
 if __name__ == "__main__":
 
     parsedJSONDir = sys.argv[1]
+
+    labelFile = sys.argv[6]
+
+    discardFile = sys.argv[8]
+
+    wordDensityThreshold = float(sys.argv[7])
 
     # get all the files
     jsonFiles = glob.glob(parsedJSONDir + "/*.json")
 
     # one json to rule them all, the sentenceRegionValue.json
     outputFile = sys.argv[2]
-
-    labelFile = sys.argv[4]
 
     # this forms the columns using the lexicalized dependency and surface patterns
     pattern2location2values = {}
@@ -114,6 +119,8 @@ if __name__ == "__main__":
 
     sentences2location2valuesSlots = []
 
+    sentences2location2valuesDiscarded = []
+
     print str(len(jsonFiles)) + " files to process"
 
     # load the hardcoded names (if any):
@@ -121,13 +128,13 @@ if __name__ == "__main__":
     if len(sys.argv) > 3:
         names = codecs.open(sys.argv[3], encoding='utf-8').readlines()
         for name in names:
-            print unicode(name).split()
+            # print unicode(name).split()
             tokenizedLocationNames.append(unicode(name).split())
     # print "Dictionary with hardcoded tokenized location names"
     # print tokenizedLocationNames
 
     # Use len(jsonFiles) for all, 100 for testing
-    for jsonFileName in itertools.islice(jsonFiles , 0, len(jsonFiles)):
+    for jsonFileName in itertools.islice(jsonFiles , 0, 100):
     # for fileCounter, jsonFileName in enumerate(jsonFiles):
         # For each file in the HTML JSON
         print "processing " + jsonFileName
@@ -144,24 +151,17 @@ if __name__ == "__main__":
             # if there was at least one location and one number build the dependency graph:
             # Check if len(sentence["tokens"])<120 step is valid
             if len(tokenIDs2number) > 0 and len(tokenIDs2location) > 0 and len(sentence["tokens"])<120:
+
                 wordsInSentence = []
+
                 for token in sentence["tokens"]:
                     wordsInSentence.append(token["word"])
                 sample = " ".join(wordsInSentence)
+
                 # This is the sentence.
                 # print "Original sentence is : ", sample
                 # for each pair of location and number
                 # get the pairs of each and find their dependency paths (might be more than one)
-
-                slotSampleTokens = sample.split()
-
-                slotSentenceDict = {}
-
-                slotSentenceDict["sentence"] = sample
-
-                slotSentenceDict["regions"] = []
-
-                slotSentenceDict["values"] = []
 
 
                 for locationTokenIDs, location in tokenIDs2location.items():
@@ -177,25 +177,100 @@ if __name__ == "__main__":
 
                         sentenceDict["location-value-pair"] = {location:number}
 
-                        slotSentenceDict["regions"].append(location)
-
-                        slotSentenceDict["values"].append(number)
+                        # Check that each sentence contains at max 3 location/number slots
 
                         # print "Sample tokens are: ", sampleTokens
                         for numberTokenID in numberTokenIDs:
                              for locationTokenID in locationTokenIDs:
+                                # TODO - adjust the tokens here
                                 # print "Number token ID is : ",numberTokenID
                                 # print "Location token ID is : ",locationTokenID
                                 sampleTokens[locationTokenID] = "LOCATION_SLOT"
                                 sampleTokens[numberTokenID] = "NUMBER_SLOT"
-                                slotSampleTokens[locationTokenID] = "LOCATION_SLOT"
-                                slotSampleTokens[numberTokenID] = "NUMBER_SLOT"
                                 slotSentence = (" ").join(sampleTokens)
                                 sentenceDict["parsedSentence"] = slotSentence
-                        sentences2location2values["sentences"].append(sentenceDict)
-                slotSentenceSlots = (" ").join(slotSampleTokens)
-                slotSentenceDict["parsedSentence"] = slotSentenceSlots
-                sentences2location2valuesSlots.append(slotSentenceDict)
+                                sentences2location2values["sentences"].append(sentenceDict)
+                                sentences2location2valuesSlots.append(sentenceDict)
+
+                # Account for millions etc. in the word density calculation
+                for i,token in enumerate(sampleTokens):
+                    if (token == "LOCATION_SLOT" or token == "NUMBER_SLOT") and token==prev_Word and prev_Word is not None:
+                        # print "Old sample tokens",sampleTokens
+                        sampleTokens.remove(sampleTokens[i-1])
+                        # print "New sample tokens",sampleTokens
+                        if i>0 and i<(len(sampleTokens)-1):
+                            prev_Word = token
+                    else:
+                        if i>0 and i<(len(sampleTokens)-1):
+                            prev_Word = token
+                        continue
+
+                locationCount=0
+                numberCount=0
+
+                # Remove items with too many location and number slots
+                denseSentence = False
+                tooManySlots = False
+                # print "Here are the full tokens",slotSampleTokens
+                # for i,sentence in enumerate(sentences2location2valuesSlots):
+                #     sentence['parsedSentence']=(" ").join(sampleTokens)
+                analyser = Text(sampleTokens)
+                # Check the density of any word in sentences not being too high (likely to be too many location/number slots) on a per sentence basis
+
+                # print slotSampleTokens
+
+                for token in sampleTokens:
+                    if token =="LOCATION_SLOT":
+                        locationCount+=1
+                    elif token =="NUMBER_SLOT":
+                        numberCount+=1
+                    # print slotSampleTokens
+                    # print token
+                    # print "Count is",analyser.count(token)
+                    # print "Sentence length is ",len(slotSampleTokens)
+                    if locationCount>3 or numberCount>3:
+                    # print "Number of locations", len(tokenIDs2location)
+                    # print "Number of values", len(tokenIDs2number)
+                        tooManySlots = True
+                        break
+                    wordDensity = float(analyser.count(token))/float(len(sampleTokens))
+                    # print wordDensity
+                    if wordDensity>wordDensityThreshold:
+                        # print "wordDensity is",wordDensity
+                        # print "threshold is",wordDensityThreshold
+                        denseSentence = True
+                        # "Exiting loop..."
+                        break
+
+                for i,sentence in enumerate(sentences2location2valuesSlots):
+                    if tooManySlots or denseSentence:
+                        sentences2location2valuesDiscarded.append(sentence)
+                        del sentences2location2valuesSlots[i]
+
+
+    # This is about accounting for millions etc to account for bag of words
+
+    prev_Word=None
+
+    # TODO - need to also delete training instances with multiple region value-pairs, and do this for all countries
+    for i,sentence in enumerate(sentences2location2valuesSlots):
+        sampleTokens = sentence['parsedSentence'].split()
+        for i,token in enumerate(sampleTokens):
+            if (token == "LOCATION_SLOT" or token == "NUMBER_SLOT") and token==prev_Word and prev_Word is not None:
+                # print "Old sample tokens",sampleTokens
+                sampleTokens.remove(sampleTokens[i-1])
+                # print "New sample tokens",sampleTokens
+                if i>0 and i<(len(sampleTokens)-1):
+                    prev_Word = token
+            else:
+                if i>0 and i<(len(sampleTokens)-1):
+                    prev_Word = token
+                continue
+        sentence['parsedSentence']=(' ').join(sampleTokens)
+
+    print "Model sentence length",len(sentences2location2values['sentences'])
+    print "Labelled sentence length",len(sentences2location2valuesSlots)
+    print "Discarded sentence length",len(sentences2location2valuesDiscarded)
 
     with open(outputFile, "wb") as out:
         #Links the sentences to the region-value pairs
@@ -204,3 +279,7 @@ if __name__ == "__main__":
     with open(labelFile, "wb") as out:
         #Links the sentences to the region-value pairs
         json.dump(sentences2location2valuesSlots, out,indent=4)
+
+    with open(discardFile, "wb") as out:
+        #Links the sentences to the region-value pairs
+        json.dump(sentences2location2valuesDiscarded, out,indent=4)
