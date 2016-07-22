@@ -25,7 +25,7 @@ with open(sys.argv[6]) as fullPropFile:
 with open(sys.argv[2], 'w') as csvfile:
     fieldnames = ['sentence',
                   'Which one of the 16 statistics is this sentence talking about, if any?',
-                  'Which one of the 54 statistics is this sentence talking about, if not talking about the set of 16? If it is none of the 54, please put "no_property',
+                  'Which one of the remaining 54 statistics is this sentence talking about, if not talking about the set of 16? If it is none of the 54, please put "no_property',
                   'Is the sentence subjective or objective?',
                   'Is the sentence an affirmative or negation?',
                   'Is the sentence a statement or question?',

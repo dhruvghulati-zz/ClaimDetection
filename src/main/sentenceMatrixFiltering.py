@@ -119,7 +119,7 @@ print "Writing to filtered file for model\n"
 with open(sys.argv[3], "wb") as out:
     json.dump(pattern2locations2values, out,indent=4)
 
-print "Writing to filtered file for manual labelling\n"
+# print "Writing to filtered file for manual labelling\n"
 
 # with open(sys.argv[5], "wb") as out:
 #     json.dump(fullSentenceSlots, out,indent=4)
