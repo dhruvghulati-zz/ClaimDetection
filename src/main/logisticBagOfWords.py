@@ -131,26 +131,34 @@ def probabilityThreshold(classifier,prediction, numberProperties, testCatLabels,
     print "Threshold is", meanProbThreshold
     print "Prob threshold is", fixedProbThreshold
 
-    # print testCatLabels
+    print testCatLabels
 
     categories = np.array(classifier.classes_)
     print "Categories are", categories
-    print type(categories)
 
-    # print type(prediction)
-    # print "Probabilities are", prediction
+    print "Probabilities are", prediction
+
+    print "Dimensions of prediction matrix are",prediction.shape
 
     catIndex = []
 
-    probPrediction = prediction.copy()
+    probPrediction = np.copy(prediction)
+
+    print type(probPrediction)
+    print "Probabilities are", probPrediction
 
     for i, label in enumerate(testCatLabels):
+        # If this doesn't find an index for the test labels, it means we haven't found a binary label for that property, wasn't even in our prediction, so actually should be given the index for no_region'
         index = [i for i, s in enumerate(categories) if s == label]
+        if not index:
+            index = [-1]
         catIndex.append(index)
 
+    print "Categorical indices pre-ravel are", catIndex
+
     catIndex = np.array(catIndex).ravel()
-    # print "Categorical indices are", catIndex
-    # print type(catIndex)
+    print "New categorical indices are", catIndex
+    print type(catIndex)
 
     # Binarise the probabilities
     for i, sentence in enumerate(prediction):
@@ -167,28 +175,39 @@ def probabilityThreshold(classifier,prediction, numberProperties, testCatLabels,
             else:
                 probPrediction[i][j] = 0
 
-    # print "Binary labels are", prediction
+    print "Binary labels are", prediction
+    print "Fixed binary labels are", probPrediction
+
     print "Number of 0s are ", prediction.size - np.count_nonzero(prediction)
+    print "Number of 0s in fixed binary labels are ", probPrediction.size - np.count_nonzero(probPrediction)
+
+    # print "Arranged catindex is ",np.arange(len(catIndex))
 
     # TODO - the predicted binary labels in prediction don't match the categorical index of the categories being predicted for. It should match the unique labels?
 
-#     Traceback (most recent call last):
-#   File "/Users/dhruv/Documents/university/ClaimDetection/src/main/logisticBagOfWords.py", line 313, in <module>
-#     y_multi_logit_result_open_prob_threshold, y_multi_logit_result_open_prob_binary_threshold,y_multi_logit_result_open_prob_thresholdFixed, y_multi_logit_result_open_prob_binary_thresholdFixed = probabilityThreshold(multi_logit_threshold,prob_prediction_threshold,len(set(train_property_labels_threshold)), y_multi_true,probThreshold)
-#   File "/Users/dhruv/Documents/university/ClaimDetection/src/main/logisticBagOfWords.py", line 174, in probabilityThreshold
-#     predictedBinaryValues = prediction[np.arange(len(catIndex)), catIndex]
-# IndexError: arrays used as indices must be of integer (or boolean) type
+    predictedBinaryValues = []
+    argProbResultBinary = []
 
-    predictedBinaryValues = prediction[np.arange(len(catIndex)), catIndex]
-    predictedCats = categories[catIndex]
-    argProbResultBinary = probPrediction[np.arange(len(catIndex)), catIndex]
+    for i,j in zip(np.arange(len(catIndex)),catIndex):
+        if j==-1:
+            predictedBinaryValues.append(0)
+            argProbResultBinary.append(0)
+        else:
+            predictedBinaryValues.append(prediction[i,j])
+            argProbResultBinary.append(prediction[i,j])
 
-    catResult = np.where(predictedBinaryValues, predictedCats, "no_region")
-    argProbResult = np.where(argProbResultBinary, predictedCats, "no_region")
+    print "Predicted binary values are", predictedBinaryValues
+    print "Predicted fixed binary values are", argProbResultBinary
+    # prediction[np.arange(len(catIndex)), catIndex if not catIndex=-1 else 0]
+    # predictedCats = categories[catIndex]
+    # argProbResultBinary = probPrediction[np.arange(len(catIndex)), catIndex]
+    #
+    # catResult = np.where(predictedBinaryValues, predictedCats, "no_region")
+    # argProbResult = np.where(argProbResultBinary, predictedCats, "no_region")
 
     # print catResult
 
-    return catResult,predictedBinaryValues, argProbResult,argProbResultBinary
+    return predictedBinaryValues, argProbResultBinary
 
 
 # Find index of the true label for the sentence, and if that same index for that sentence is one, return the classifier class, else no region
@@ -293,7 +312,7 @@ if __name__ == "__main__":
 
     print "Predicting open multinomial test labels w/ threshold...\n"
     y_multi_logit_result_open_threshold = np.array(open_threshold_multi_logit.predict(test_data_features))
-    print "Predicting open multinomial test labels w/ threshold...\n"
+    print "Predicting closed multinomial test labels w/ threshold...\n"
     y_multi_logit_result_closed_threshold = np.array(closed_threshold_multi_logit.predict(test_data_features))
 
     # Load in the test data
@@ -303,8 +322,6 @@ if __name__ == "__main__":
     # These are the ground truths
     y_multi_true = np.array(test['property'])
     y_true_claim = np.array(test['claim'])
-
-    # TODO - I shouldn't be fitting again, just predicting
 
     prob_prediction = np.array(open_multi_logit.predict_proba(test_data_features))
 
@@ -316,30 +333,20 @@ if __name__ == "__main__":
 
     print "Predicting open multinomial test labels with/without MAPE threshold using probability based predictor...\n"
 
-    y_multi_logit_result_open_prob, y_multi_logit_result_open_prob_binary,y_multi_logit_result_open_probFixed, y_multi_logit_result_open_prob_binaryFixed = probabilityThreshold(multi_logit,prob_prediction,len(set(train_property_labels)), y_multi_true,probThreshold)
+    y_multi_logit_result_open_prob_binary,y_multi_logit_result_open_prob_binaryFixed = probabilityThreshold(multi_logit,prob_prediction,len(set(train_property_labels)), y_multi_true,probThreshold)
 
-    y_multi_logit_result_open_prob_threshold, y_multi_logit_result_open_prob_binary_threshold,y_multi_logit_result_open_prob_thresholdFixed, y_multi_logit_result_open_prob_binary_thresholdFixed = probabilityThreshold(multi_logit_threshold,prob_prediction_threshold,len(set(train_property_labels_threshold)), y_multi_true,probThreshold)
+    y_multi_logit_result_open_prob_binary_threshold,y_multi_logit_result_open_prob_binary_thresholdFixed = probabilityThreshold(multi_logit_threshold,prob_prediction_threshold,len(set(train_property_labels_threshold)), y_multi_true,probThreshold)
 
     print "Predicting closed multinomial test labels with/without MAPE threshold using probability based predictor...\n"
-    y_multi_logit_result_closed_prob, y_multi_logit_result_closed_prob_binary,y_multi_logit_result_closed_probFixed, y_multi_logit_result_closed_prob_binaryFixed = probabilityThreshold(closed_multi_logit,closed_prob_prediction,len(set(closed_train_property_labels)),y_multi_true,probThreshold)
+    y_multi_logit_result_closed_prob_binary, y_multi_logit_result_closed_prob_binaryFixed = probabilityThreshold(closed_multi_logit,closed_prob_prediction,len(set(closed_train_property_labels)),y_multi_true,probThreshold)
 
-    y_multi_logit_result_closed_prob_threshold, \
-    y_multi_logit_result_closed_prob_binary_threshold,\
-    y_multi_logit_result_closed_prob_thresholdFixed, \
-    y_multi_logit_result_closed_prob_binary_thresholdFixed = probabilityThreshold(closed_multi_logit_threshold,closed_prob_prediction_threshold,len(set(closed_train_property_labels_threshold)),y_multi_true,probThreshold)
+    y_multi_logit_result_closed_prob_binary_threshold,y_multi_logit_result_closed_prob_binary_thresholdFixed = probabilityThreshold(closed_multi_logit_threshold,closed_prob_prediction_threshold,len(set(closed_train_property_labels_threshold)),y_multi_true,probThreshold)
 
     y_multi_logit_result_open_threshold_binary = []
     y_multi_logit_result_closed_threshold_binary = []
 
     # This is Andreas model for distant supervision
     y_andreas_mape = test['mape_label']
-
-    # TODO - we shouldn't have to say if 1 or 0 before'
-    # This is the test labels for distant supervision
-    # y_distant_sv_property_openMAPE = test['predictedOpenMAPELabel']
-    # y_distant_sv_property_openThresholdMAPE = test['predictedOpenThresholdMAPELabel']
-    # y_distant_sv_property_closedMAPE = test['predictedClosedMAPELabel']
-    # y_distant_sv_property_closedThresholdMAPE = test['predictedClosedThresholdMAPELabel']
 
     y_distant_sv_property_openThreshold = test['predictedPropertyOpenThreshold']
     y_distant_sv_property_closedThreshold = test['predictedPropertyClosedThreshold']
@@ -391,22 +398,14 @@ if __name__ == "__main__":
                                     closed_property_prediction_withMAPEthreshold=y_multi_logit_result_closed_threshold,
                                     closed_property_prediction_withMAPEthreshold_toBinary=y_multi_logit_result_closed_threshold_binary,
 
-                                    open_property_probability_prediction=y_multi_logit_result_open_prob,
-                                    open_property_probability_threshold_prediction=y_multi_logit_result_open_prob_threshold,
                                     open_property_probability_prediction_toBinary=y_multi_logit_result_open_prob_binary,
                                     open_property_probability_threshold_prediction_toBinary=y_multi_logit_result_open_prob_binary_threshold,
-                                    closed_property_probability_prediction=y_multi_logit_result_closed_prob,
-                                    closed_property_probability_threshold_prediction=y_multi_logit_result_closed_prob_threshold,
                                     closed_property_probability_prediction_toBinary=y_multi_logit_result_closed_prob_binary,
                                     closed_property_probability_threshold_prediction_toBinary=y_multi_logit_result_closed_prob_binary_threshold,
 
-                                    open_property_probability_predictionFixed=y_multi_logit_result_open_probFixed,
-                                    open_property_probability_threshold_predictionFixed=y_multi_logit_result_open_prob_thresholdFixed,
                                     open_property_probability_prediction_toBinaryFixed=y_multi_logit_result_open_prob_binaryFixed,
                                     open_property_probability_threshold_prediction_toBinaryFixed=y_multi_logit_result_open_prob_binary_thresholdFixed,
 
-                                    closed_property_probability_predictionFixed=y_multi_logit_result_closed_probFixed,
-                                    closed_property_probability_threshold_predictionFixed=y_multi_logit_result_closed_prob_thresholdFixed,
                                     closed_property_probability_prediction_toBinaryFixed=y_multi_logit_result_closed_prob_binaryFixed,
                                     closed_property_probability_threshold_prediction_toBinaryFixed=y_multi_logit_result_closed_prob_binary_thresholdFixed,
 
@@ -428,7 +427,7 @@ if __name__ == "__main__":
 
     # print str(os.path.splitext(sys.argv[2])[0]).split("/")
     # TODO This was an issue on command line - change to [2] if on command line
-    testSet = str(os.path.splitext(sys.argv[2])[0]).split("/")[8]
+    testSet = str(os.path.splitext(sys.argv[2])[0]).split("/")[2]
 
     resultPath = os.path.join(sys.argv[4] + "test/" + testSet + '_' + str(threshold) + '_' + str(probThreshold)+ '_regressionResult.csv')
 
@@ -441,23 +440,15 @@ if __name__ == "__main__":
         'closed_property_prediction_withMAPEthreshold',
         'closed_property_prediction_withMAPEthreshold_toBinary',
 
-        'open_property_probability_prediction',
-        'open_property_probability_threshold_prediction',
         'open_property_probability_prediction_toBinary',
         'open_property_probability_threshold_prediction_toBinary',
 
-        'closed_property_probability_prediction',
-        'closed_property_probability_threshold_prediction',
         'closed_property_probability_prediction_toBinary',
         'closed_property_probability_threshold_prediction_toBinary',
 
-        'open_property_probability_predictionFixed',
-        'open_property_probability_threshold_predictionFixed',
         'open_property_probability_prediction_toBinaryFixed',
         'open_property_probability_threshold_prediction_toBinaryFixed',
 
-        'closed_property_probability_predictionFixed',
-        'closed_property_probability_threshold_predictionFixed',
         'closed_property_probability_prediction_toBinaryFixed',
         'closed_property_probability_threshold_prediction_toBinaryFixed',
 

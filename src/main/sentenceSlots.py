@@ -225,7 +225,14 @@ if __name__ == "__main__":
                 for locationTokenIDs, location in tokenIDs2location.items():
                     for numberTokenIDs, number in tokenIDs2number.items():
 
+
+
                         sentenceDict = {}
+
+                        if len(numberTokenIDs)>3 or len(locationTokenIDs)>3:
+                            sentenceDict["dense"]=True
+                        else:
+                            sentenceDict["dense"]=False
 
                         sampleTokens = sample.split()
 
@@ -264,48 +271,43 @@ if __name__ == "__main__":
     # TODO - need to also delete training instances with multiple region value-pairs, and do this for all countries
     for i,(sentence,finalSentence) in enumerate(zip(sentences2location2valuesSlots,sentences2location2values["sentences"])):
         sampleTokens = sentence['parsedSentence'].split()
-        # print "Sentence is ",sentence
+        # print "Sentence is ",sentence['parsedSentence']
         # print "Final sentence is",finalSentence
         # finalSampleTokens = finalSentence['parsedSentence'].split()
         # print "Old sample tokens are",sampleTokens,"\n"
-        prev_Word=None
+        newTokens = []
         for i,token in enumerate(sampleTokens):
-            if token == "LOCATION_SLOT" or token == "NUMBER_SLOT" and token==prev_Word and prev_Word is not None:
-                # print "Old sample tokens",sampleTokens
-                del sampleTokens[i-1]
-                # print "New sample tokens",sampleTokens
-                # if i>0 and i<(len(sampleTokens)-1):
-                prev_Word = token
+            if i>0 and ((token == "LOCATION_SLOT" and sampleTokens[i-1]=="LOCATION_SLOT") or (token == "NUMBER_SLOT" and sampleTokens[i-1]=="NUMBER_SLOT")):
+                continue
             else:
-                # if i>0 and i<(len(sampleTokens)-1):
-                prev_Word = token
+                newTokens.append(token)
 
-        # print "New sample tokens",sampleTokens,"\n"
+        sentence['parsedSentence']=(' ').join(newTokens)
+        finalSentence['parsedSentence']=(' ').join(newTokens)
 
-        sentence['parsedSentence']=(' ').join(sampleTokens)
-        finalSentence['parsedSentence']=(' ').join(sampleTokens)
+        # print "New sentence",sentence['parsedSentence'],"\n"
 
         locationCount=0
         numberCount=0
 
         # Remove items with too many location and number slots
         denseSentence = False
-        tooManySlots = False
-        analyser = Text(sampleTokens)
+        tooManySlots = sentence["dense"]
+        analyser = Text(newTokens)
 
-        for token in sampleTokens:
-            if token =="LOCATION_SLOT":
-                locationCount+=1
-            elif token =="NUMBER_SLOT":
-                numberCount+=1
-            if locationCount>3 or numberCount>3:
-                # print "Too many tokens are",sampleTokens
-                # print "Sentence is",sample
-            # print "Number of locations", len(tokenIDs2location)
-            # print "Number of values", len(tokenIDs2number)
-                tooManySlots = True
-                break
-            wordDensity = float(analyser.count(token))/float(len(sampleTokens))
+        for token in newTokens:
+            # if token =="LOCATION_SLOT":
+            #     locationCount+=1
+            # elif token =="NUMBER_SLOT":
+            #     numberCount+=1
+            # if locationCount>3 or numberCount>3:
+            #     # print "Too many tokens are",sampleTokens
+            #     # print "Sentence is",sample
+            # # print "Number of locations", len(tokenIDs2location)
+            # # print "Number of values", len(tokenIDs2number)
+            #     tooManySlots = True
+            #     break
+            wordDensity = float(analyser.count(token))/float(len(newTokens))
             # print wordDensity
             if wordDensity>wordDensityThreshold:
                 # print "wordDensity is",wordDensity

@@ -1,3 +1,4 @@
+'''
 # so this script takes as input a dictionary in json with the following structure:
 # dep or string pattern : {location1:[values], location2:[values]}, etc.
 # and does the following kinds of filtering:
@@ -8,11 +9,17 @@
 # The second argument is a list of (FreeBase) region names to their aliases which will
 # to bring condense the matrix (UK and U.K. becoming the same location), but also they
 # prepare us for experiments 
-
+'''
 
 import json
 import numpy as np
 import sys
+from collections import OrderedDict
+import yaml
+import itertools
+import operator
+from operator import itemgetter
+import pprint
 
 '''
 TODO - this needs to account for any further cleaning beyond aliasing we need to do, for example not including anything where the value is 0.
@@ -29,12 +36,74 @@ np.seterr(all='raise')
 # load the file
 with open(sys.argv[1]) as jsonFile:
     pattern2locations2values = json.loads(jsonFile.read())
+    # pattern2locations2values = yaml.safe_load(jsonFile)
 
-# # load the file
-# with open(sys.argv[4]) as sentenceSlotsFull:
-#     fullSentenceSlots = json.loads(sentenceSlotsFull.read())
+# load the file
+with open(sys.argv[4]) as sentenceSlotsFull:
+    fullSentenceSlots = json.loads(sentenceSlotsFull.read())
+    # fullSentenceSlots = yaml.safe_load(sentenceSlotsFull)
 
-print "sentences before filtering:", len(pattern2locations2values['sentences'])
+print "Model sentences before filtering:", len(pattern2locations2values['sentences'])
+print "labelling sentences before filtering:", len(fullSentenceSlots)
+
+# print type(pattern2locations2values)
+# print type(fullSentenceSlots)
+
+# def f7(seq):
+#     seen = set()
+#     seen_add = seen.add
+#     return [x for x in seq if not (x in seen or seen_add(x))]
+
+# Deduplicate files
+# seen = set()
+# pattern2locations2valuesUnique = [{'sentences':[]}]
+# for d in pattern2locations2values["sentences"]:
+#     print d
+#     t = tuple(sorted(d.items()))
+#     print t
+#     if t not in seen:
+#         seen.add(t)
+#         pattern2locations2valuesUnique["sentences"].append(d)
+
+
+# pattern2locations2values = f7(pattern2locations2values)
+# fullSentenceSlots = f7(fullSentenceSlots)
+
+
+# pattern2locations2valuesUnique = OrderedDict((frozenset(item.items()),item) for item in pattern2locations2values['sentences']).itervalues()
+# fullSentenceSlotsUnique = OrderedDict((frozenset(item.items()),item) for item in fullSentenceSlots).itervalues()
+
+getvals = operator.itemgetter(u"parsedSentence", u"sentence",u"location-value-pair")
+getvalsLabels = operator.itemgetter(u"sentence")
+
+pattern2locations2values['sentences'].sort(key=getvals)
+fullSentenceSlots.sort(key=getvalsLabels)
+
+result = []
+for k, g in itertools.groupby(pattern2locations2values['sentences'], getvals):
+    result.append(g.next())
+pattern2locations2values['sentences'][:] = result
+
+result = []
+for k, g in itertools.groupby(fullSentenceSlots, getvalsLabels):
+    result.append(g.next())
+fullSentenceSlots[:] = result
+
+
+# Deduplicate files
+# seen = set()
+# fullSentenceSlotsUnique = []
+# for d in fullSentenceSlots:
+#     t = tuple(d.items())
+#     if t not in seen:
+#         seen.add(t)
+#         fullSentenceSlotsUnique.append(d)
+#
+# pattern2locations2values = pattern2locations2valuesUnique
+# fullSentenceSlots = fullSentenceSlotsUnique
+
+print "Unique sentences before filtering:", len(pattern2locations2values['sentences'])
+print "Unique labelling sentences before filtering:", len(fullSentenceSlots)
 
 #load the file
 print "Loading the aliases file\n"
@@ -119,8 +188,8 @@ print "Writing to filtered file for model\n"
 with open(sys.argv[3], "wb") as out:
     json.dump(pattern2locations2values, out,indent=4)
 
-# print "Writing to filtered file for manual labelling\n"
+print "Writing to filtered file for manual labelling\n"
 
-# with open(sys.argv[5], "wb") as out:
-#     json.dump(fullSentenceSlots, out,indent=4)
+with open(sys.argv[5], "wb") as out:
+    json.dump(fullSentenceSlots, out,indent=4)
 
