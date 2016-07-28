@@ -41,7 +41,6 @@ import copy
 rng = np.random.RandomState(101)
 
 #
-# python src/main/trainingFeatures.py data/output/predictedProperties.json data/output/hyperTestLabels.json data/regressionResult.json
 
 '''TODO -
     Bi-grams, LSTMs, Word2Vec

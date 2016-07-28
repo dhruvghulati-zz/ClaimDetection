@@ -1,12 +1,8 @@
-'''
-
-This optimises hyperparameters both on probability and on the MAPE threshold and spits out results for:
-
-
-
-'''
-
-
+from sklearn.linear_model import LogisticRegression
+from sklearn.cross_validation import train_test_split
+from costcla.datasets import load_creditscoring2
+from costcla.models import CostSensitiveLogisticRegression
+from costcla.metrics import savings_score
 import re
 from nltk.corpus import stopwords  # Import the stop word list
 import json
@@ -25,54 +21,27 @@ from itertools import repeat
 
 rng = np.random.RandomState(101)
 
+# http://nbviewer.jupyter.org/github/albahnsen/CostSensitiveClassification/blob/master/doc/tutorials/tutorial_edcs_credit_scoring.ipynb
+
+# data = load_creditscoring2()
+# sets = train_test_split(data.data, data.target, data.cost_mat, test_size=0.33, random_state=0)
+# X_train, X_test, y_train, y_test, cost_mat_train, cost_mat_test = sets
+# print "This is the cost matrix",cost_mat_train
+# print "This is the training features",X_train
+# print "This is the training labels",y_train
+# y_pred_test_lr = LogisticRegression(random_state=0).fit(X_train, y_train).predict(X_test)
+# f = CostSensitiveLogisticRegression()
+# f.fit(X_train, y_train, cost_mat_train)
 #
-# python src/main/trainingFeatures.py data/output/predictedProperties.json data/output/hyperTestLabels.json data/regressionResult.json
-
-'''TODO -
-    Bi-grams, LSTMs, Word2Vec
-    Cost-sensitive classification
-    Use class-weight = balanced
-    Cross validation
-    Check training parameters and that they have been parsed correctly
-    Precision, recall, F1 for each region
-    Are we training on too many positive instances (no region)?
-'''
-
-
-# Balance my training data
-def balanced_subsample(x, y, subsample_size=1.0):
-    class_xs = []
-    min_elems = None
-
-    for yi in np.unique(y):
-        elems = x[(y == yi)]
-        class_xs.append((yi, elems))
-        if min_elems == None or elems.shape[0] < min_elems:
-            min_elems = elems.shape[0]
-
-    use_elems = min_elems
-    if subsample_size < 1:
-        use_elems = int(min_elems * subsample_size)
-
-    xs = []
-    ys = []
-
-    for ci, this_xs in class_xs:
-        if len(this_xs) > use_elems:
-            rng.shuffle(this_xs)
-
-        x_ = this_xs[:use_elems]
-        y_ = np.empty(use_elems)
-        y_.fill(ci)
-
-        xs.append(x_)
-        ys.append(y_)
-
-    xs = np.concatenate(xs)
-    ys = np.concatenate(ys)
-
-    return xs, ys
-
+# y_pred_test_cslr = f.predict(X_test)
+#
+# print "Savings using Logistic Regression\n"
+# print(savings_score(y_test, y_pred_test_lr, cost_mat_test))
+# # 0.00283419465107
+#
+# print "Savings using Cost Sensitive Logistic Regression"
+# print(savings_score(y_test, y_pred_test_cslr, cost_mat_test))
+# 0.142872237978
 
 def sentence_to_words(sentence, remove_stopwords=False):
     letters_only = re.sub('[^a-zA-Z| LOCATION_SLOT | NUMBER_SLOT]', " ", sentence)
@@ -88,6 +57,8 @@ def sentence_to_words(sentence, remove_stopwords=False):
 
 def training_features(inputSentences):
     global vectorizer
+    global open_cost_mat_train
+    global closed_cost_mat_train
     # [:15000]
     for i, sentence in enumerate(inputSentences[:15000]):
         # Dont train if the sentence contains a random region we don't care about
@@ -100,6 +71,11 @@ def training_features(inputSentences):
             # Closed evaluation only include certain training sentences
             closed_train_property_labels.append(sentence['predictedPropertyClosed'])
             closed_train_property_labels_threshold.append(sentence['predictedPropertyClosedThreshold'])
+            # cost_mat[C_FP,C_FN,C_TP,C_TN]
+            open_cost_mat = np.array([sentence['meanAbsError'],0,0,0])
+            open_cost_mat_train = np.vstack([open_cost_mat_train,open_cost_mat])
+            closed_cost_mat = np.array([sentence['closedMeanAbsError'],0,0,0])
+            closed_cost_mat_train = np.vstack([closed_cost_mat_train,closed_cost_mat])
     # print "These are the clean words in the training sentences: ", train_wordlist
     # print "These are the labels in the training sentences: ", train_labels
     print "Creating the bag of words...\n"
@@ -111,11 +87,15 @@ def training_features(inputSentences):
 
 def test_features(testSentences):
     global vectorizer
+    global cost_mat_test
 
     for sentence in testSentences:
         if sentence['parsedSentence'] != {} and sentence['mape_label'] != {}:
             clean_test_sentences.append(" ".join(sentence_to_words(sentence['parsedSentence'], True)))
             test_property_labels.append(sentence['property'])
+            # TODO - check if this is right - should we use the same method as for training ?
+            mape_cost_mat = np.array([sentence['meanAbsError'],0,0,0])
+            cost_mat_test = np.vstack([cost_mat_test,mape_cost_mat])
 
     # print "These are the clean words in the test sentences: ", clean_test_sentences
     # print "These are the mape labels in the test sentences: ", binary_test_labels
@@ -123,94 +103,6 @@ def test_features(testSentences):
     test_data_features = test_data_features.toarray()
 
     return test_data_features
-
-
-def probabilityThreshold(classifier,prediction, numberProperties, testCatLabels,fixedProbThreshold):
-    print "Number of properties is", numberProperties
-    meanProbThreshold = 1 / float(numberProperties)
-    print "Threshold is", meanProbThreshold
-    print "Prob threshold is", fixedProbThreshold
-
-    # print testCatLabels
-
-    categories = np.array(classifier.classes_)
-    print "Categories are", categories
-
-    print "Probabilities are", prediction
-
-    print "Dimensions of prediction matrix are",prediction.shape
-
-    catIndex = []
-
-    probPrediction = np.copy(prediction)
-
-    print type(probPrediction)
-    print "Probabilities are", probPrediction
-
-    for i, label in enumerate(testCatLabels):
-        # If this doesn't find an index for the test labels, it means we haven't found a binary label for that property, wasn't even in our prediction, so actually should be given the index for no_region'
-        index = [i for i, s in enumerate(categories) if s == label]
-        if not index:
-            index = [-1]
-        catIndex.append(index)
-
-    print "Categorical indices pre-ravel are", catIndex
-
-    catIndex = np.array(catIndex).ravel()
-    print "New categorical indices are", catIndex
-    print type(catIndex)
-
-    # Binarise the probabilities
-    for i, sentence in enumerate(prediction):
-        for j, prob in enumerate(sentence):
-            if prob > meanProbThreshold:
-                prediction[i][j] = 1
-            else:
-                prediction[i][j] = 0
-
-    for i, sentence in enumerate(probPrediction):
-        for j, prob in enumerate(sentence):
-            if prob > fixedProbThreshold:
-                probPrediction[i][j] = 1
-            else:
-                probPrediction[i][j] = 0
-
-    print "Binary labels are", prediction
-    print "Fixed binary labels are", probPrediction
-
-    print "Number of 0s are ", prediction.size - np.count_nonzero(prediction)
-    print "Number of 0s in fixed binary labels are ", probPrediction.size - np.count_nonzero(probPrediction)
-
-    # print "Arranged catindex is ",np.arange(len(catIndex))
-
-    # TODO - the predicted binary labels in prediction don't match the categorical index of the categories being predicted for. It should match the unique labels?
-
-    predictedBinaryValues = []
-    argProbResultBinary = []
-
-    for i,j in zip(np.arange(len(catIndex)),catIndex):
-        if j==-1:
-            predictedBinaryValues.append(0)
-            argProbResultBinary.append(0)
-        else:
-            predictedBinaryValues.append(prediction[i,j])
-            argProbResultBinary.append(probPrediction[i,j])
-
-    print "Predicted binary values are", predictedBinaryValues
-    print "Predicted fixed binary values are", argProbResultBinary
-    # prediction[np.arange(len(catIndex)), catIndex if not catIndex=-1 else 0]
-    # predictedCats = categories[catIndex]
-    # argProbResultBinary = probPrediction[np.arange(len(catIndex)), catIndex]
-    #
-    # catResult = np.where(predictedBinaryValues, predictedCats, "no_region")
-    # argProbResult = np.where(argProbResultBinary, predictedCats, "no_region")
-
-    # print catResult
-
-    return predictedBinaryValues, argProbResultBinary
-
-
-# Find index of the true label for the sentence, and if that same index for that sentence is one, return the classifier class, else no region
 
 if __name__ == "__main__":
     # training data
@@ -247,6 +139,12 @@ if __name__ == "__main__":
     closed_train_property_labels_threshold = []
     test_property_labels = []
 
+    open_cost_mat_train = np.array([]).reshape((0,4))
+    closed_cost_mat_train = np.array([]).reshape((0,4))
+    cost_mat_test = np.array([]).reshape((0,4))
+
+
+
     vectorizer = CountVectorizer(analyzer="word", \
                                  tokenizer=None, \
                                  preprocessor=None, \
@@ -260,23 +158,27 @@ if __name__ == "__main__":
 
     print len(train_data_features), "sets of training features"
 
-    trainingLabels = len(train_data_features)
-    positiveOpenTrainingLabels = len(train_property_labels_threshold) - train_property_labels_threshold.count(
-        "no_region")
-    negativeOpenTrainingLabels = train_property_labels_threshold.count("no_region")
-    positiveClosedTrainingLabels = len(closed_train_property_labels_threshold) - closed_train_property_labels_threshold.count(
-        "no_region")
-    negativeClosedTrainingLabels = closed_train_property_labels_threshold.count(
-        "no_region")
+    print train_data_features[:10]
 
-
-    print "There are ", len(train_property_labels_threshold) - train_property_labels_threshold.count(
-        "no_region"), "positive open mape threshold labels"
-    print "There are ", train_property_labels_threshold.count("no_region"), "negative open mape threshold labels"
-    print "There are ", len(closed_train_property_labels_threshold) - closed_train_property_labels_threshold.count(
-        "no_region"), "positive closed mape threshold labels"
-    print "There are ", closed_train_property_labels_threshold.count(
-        "no_region"), "negative closed mape threshold labels\n"
+    print "This is the cost matrix",open_cost_mat_train[:10]
+    #
+    # trainingLabels = len(train_data_features)
+    # positiveOpenTrainingLabels = len(train_property_labels_threshold) - train_property_labels_threshold.count(
+    #     "no_region")
+    # negativeOpenTrainingLabels = train_property_labels_threshold.count("no_region")
+    # positiveClosedTrainingLabels = len(closed_train_property_labels_threshold) - closed_train_property_labels_threshold.count(
+    #     "no_region")
+    # negativeClosedTrainingLabels = closed_train_property_labels_threshold.count(
+    #     "no_region")
+    #
+    #
+    # print "There are ", len(train_property_labels_threshold) - train_property_labels_threshold.count(
+    #     "no_region"), "positive open mape threshold labels"
+    # print "There are ", train_property_labels_threshold.count("no_region"), "negative open mape threshold labels"
+    # print "There are ", len(closed_train_property_labels_threshold) - closed_train_property_labels_threshold.count(
+    #     "no_region"), "positive closed mape threshold labels"
+    # print "There are ", closed_train_property_labels_threshold.count(
+    #     "no_region"), "negative closed mape threshold labels\n"
 
     multi_logit = LogisticRegression(fit_intercept=True, class_weight='auto', multi_class='multinomial',
                                      solver='newton-cg')
@@ -304,16 +206,6 @@ if __name__ == "__main__":
     print "There are ", len(set(closed_train_property_labels)), "closed training properties"
     print "There are ", len(set(closed_train_property_labels_threshold)), "closed training properties w/ threshold"
 
-    print "Fitting the open multinomial logistic regression model without MAPE threshold...\n"
-    open_multi_logit = multi_logit.fit(train_data_features, train_property_labels)
-    print "Fitting the open multinomial logistic regression model w/ MAPE threshold...\n"
-    open_threshold_multi_logit = multi_logit_threshold.fit(train_data_features, train_property_labels_threshold)
-    print "Fitting the closed multinomial logistic regression model without MAPE threshold...\n"
-    closed_multi_logit = closed_multi_logit.fit(train_data_features, closed_train_property_labels)
-    print "Fitting the closed multinomial logistic regression model with MAPE threshold...\n"
-    closed_threshold_multi_logit = closed_multi_logit_threshold.fit(train_data_features,
-                                                                    closed_train_property_labels_threshold)
-
     # Create an empty list and append the clean reviews one by one
     clean_test_sentences = []
 
@@ -327,10 +219,36 @@ if __name__ == "__main__":
 
     print test_data_features
 
+
+
+    print "Fitting the open multinomial logistic regression model without MAPE threshold...\n"
+    open_multi_logit = multi_logit.fit(train_data_features, train_property_labels)
+    print "Fitting the open multinomial logistic regression model w/ MAPE threshold...\n"
+    open_threshold_multi_logit = multi_logit_threshold.fit(train_data_features, train_property_labels_threshold)
+    print "Fitting the closed multinomial logistic regression model without MAPE threshold...\n"
+    closed_multi_logit = closed_multi_logit.fit(train_data_features, closed_train_property_labels)
+    print "Fitting the closed multinomial logistic regression model with MAPE threshold...\n"
+    closed_threshold_multi_logit = closed_multi_logit_threshold.fit(train_data_features,
+                                                                    closed_train_property_labels_threshold)
+
     print "Predicting open multinomial test labels w/ threshold...\n"
     y_multi_logit_result_open_threshold = np.array(open_threshold_multi_logit.predict(test_data_features))
     print "Predicting closed multinomial test labels w/ threshold...\n"
     y_multi_logit_result_closed_threshold = np.array(closed_threshold_multi_logit.predict(test_data_features))
+    print "Predicting open multinomial test labels w/ threshold...\n"
+    y_multi_logit_result_open_threshold = np.array(open_threshold_multi_logit.predict(test_data_features))
+    print "Predicting closed multinomial test labels w/ threshold...\n"
+    y_multi_logit_result_closed_threshold = np.array(closed_threshold_multi_logit.predict(test_data_features))
+
+    costClassifier = CostSensitiveLogisticRegression()
+
+    openCostCla = costClassifier.fit(train_data_features, train_property_labels, open_cost_mat_train)
+    closedCostCla = costClassifier.fit(train_data_features, closed_train_property_labels, closed_cost_mat_train)
+
+    y_open_pred_test_cslr = openCostCla.predict(test_data_features)
+    y_closed_pred_test_cslr = closedCostCla.predict(test_data_features)
+
+
 
     # Load in the test data
     test = pd.DataFrame(finalTestSentences)
@@ -340,27 +258,31 @@ if __name__ == "__main__":
     y_multi_true = np.array(test['property'])
     y_true_claim = np.array(test['claim'])
 
-    prob_prediction = np.array(open_multi_logit.predict_proba(test_data_features))
+    # prob_prediction = np.array(open_multi_logit.predict_proba(test_data_features))
+    #
+    # prob_prediction_threshold = np.array(open_threshold_multi_logit.predict_proba(test_data_features))
+    #
+    # closed_prob_prediction = np.array(closed_multi_logit.predict_proba(test_data_features))
+    #
+    # closed_prob_prediction_threshold = np.array(closed_threshold_multi_logit.predict_proba(test_data_features))
 
-    prob_prediction_threshold = np.array(open_threshold_multi_logit.predict_proba(test_data_features))
-
-    closed_prob_prediction = np.array(closed_multi_logit.predict_proba(test_data_features))
-
-    closed_prob_prediction_threshold = np.array(closed_threshold_multi_logit.predict_proba(test_data_features))
-
-    print "Predicting open multinomial test labels with/without MAPE threshold using probability based predictor...\n"
-
-    y_multi_logit_result_open_prob_binary,y_multi_logit_result_open_prob_binaryFixed = probabilityThreshold(multi_logit,prob_prediction,len(set(train_property_labels)), y_multi_true,probThreshold)
-
-    y_multi_logit_result_open_prob_binary_threshold,y_multi_logit_result_open_prob_binary_thresholdFixed = probabilityThreshold(multi_logit_threshold,prob_prediction_threshold,len(set(train_property_labels_threshold)), y_multi_true,probThreshold)
-
-    print "Predicting closed multinomial test labels with/without MAPE threshold using probability based predictor...\n"
-    y_multi_logit_result_closed_prob_binary, y_multi_logit_result_closed_prob_binaryFixed = probabilityThreshold(closed_multi_logit,closed_prob_prediction,len(set(closed_train_property_labels)),y_multi_true,probThreshold)
-
-    y_multi_logit_result_closed_prob_binary_threshold,y_multi_logit_result_closed_prob_binary_thresholdFixed = probabilityThreshold(closed_multi_logit_threshold,closed_prob_prediction_threshold,len(set(closed_train_property_labels_threshold)),y_multi_true,probThreshold)
+    # print "Predicting open multinomial test labels with/without MAPE threshold using probability based predictor...\n"
+    #
+    # y_multi_logit_result_open_prob_binary,y_multi_logit_result_open_prob_binaryFixed = probabilityThreshold(multi_logit,prob_prediction,len(set(train_property_labels)), y_multi_true,probThreshold)
+    #
+    # y_multi_logit_result_open_prob_binary_threshold,y_multi_logit_result_open_prob_binary_thresholdFixed = probabilityThreshold(multi_logit_threshold,prob_prediction_threshold,len(set(train_property_labels_threshold)), y_multi_true,probThreshold)
+    #
+    # print "Predicting closed multinomial test labels with/without MAPE threshold using probability based predictor...\n"
+    # y_multi_logit_result_closed_prob_binary, y_multi_logit_result_closed_prob_binaryFixed = probabilityThreshold(closed_multi_logit,closed_prob_prediction,len(set(closed_train_property_labels)),y_multi_true,probThreshold)
+    #
+    # y_multi_logit_result_closed_prob_binary_threshold,y_multi_logit_result_closed_prob_binary_thresholdFixed = probabilityThreshold(closed_multi_logit_threshold,closed_prob_prediction_threshold,len(set(closed_train_property_labels_threshold)),y_multi_true,probThreshold)
 
     y_multi_logit_result_open_threshold_binary = []
     y_multi_logit_result_closed_threshold_binary = []
+
+    y_open_pred_test_cslr_binary = []
+    y_closed_pred_test_cslr_binary = []
+
 
     # This is Andreas model for distant supervision
     y_andreas_mape = test['mape_label']
@@ -379,13 +301,17 @@ if __name__ == "__main__":
                  y_distant_sv_property_closedThreshold,
                  y_multi_logit_result_open_threshold,
                  y_multi_logit_result_closed_threshold,
+                y_open_pred_test_cslr,
+                y_closed_pred_test_cslr
     ]
 
     binaryLabels = [
         y_openThreshold_distant_sv_to_binary,
         y_closedThreshold_distant_sv_to_binary,
         y_multi_logit_result_open_threshold_binary,
-        y_multi_logit_result_closed_threshold_binary
+        y_multi_logit_result_closed_threshold_binary,
+        y_open_pred_test_cslr_binary,
+        y_closed_pred_test_cslr_binary
     ]
 
     trueLabels = []
@@ -401,7 +327,6 @@ if __name__ == "__main__":
             else:
                 binaryLabel.append(0)
 
-                # print x,y,z
 
 
     for trueLabels, predictionLabels, emptyArray in zip(trueLabels, catLabels, binaryLabels):
@@ -415,16 +340,16 @@ if __name__ == "__main__":
                                     closed_property_prediction_withMAPEthreshold=y_multi_logit_result_closed_threshold,
                                     closed_property_prediction_withMAPEthreshold_toBinary=y_multi_logit_result_closed_threshold_binary,
 
-                                    open_property_probability_prediction_toBinary=y_multi_logit_result_open_prob_binary,
-                                    open_property_probability_threshold_prediction_toBinary=y_multi_logit_result_open_prob_binary_threshold,
-                                    closed_property_probability_prediction_toBinary=y_multi_logit_result_closed_prob_binary,
-                                    closed_property_probability_threshold_prediction_toBinary=y_multi_logit_result_closed_prob_binary_threshold,
-
-                                    open_property_probability_prediction_toBinaryFixed=y_multi_logit_result_open_prob_binaryFixed,
-                                    open_property_probability_threshold_prediction_toBinaryFixed=y_multi_logit_result_open_prob_binary_thresholdFixed,
-
-                                    closed_property_probability_prediction_toBinaryFixed=y_multi_logit_result_closed_prob_binaryFixed,
-                                    closed_property_probability_threshold_prediction_toBinaryFixed=y_multi_logit_result_closed_prob_binary_thresholdFixed,
+                                    # open_property_probability_prediction_toBinary=y_multi_logit_result_open_prob_binary,
+                                    # open_property_probability_threshold_prediction_toBinary=y_multi_logit_result_open_prob_binary_threshold,
+                                    # closed_property_probability_prediction_toBinary=y_multi_logit_result_closed_prob_binary,
+                                    # closed_property_probability_threshold_prediction_toBinary=y_multi_logit_result_closed_prob_binary_threshold,
+                                    #
+                                    # open_property_probability_prediction_toBinaryFixed=y_multi_logit_result_open_prob_binaryFixed,
+                                    # open_property_probability_threshold_prediction_toBinaryFixed=y_multi_logit_result_open_prob_binary_thresholdFixed,
+                                    #
+                                    # closed_property_probability_prediction_toBinaryFixed=y_multi_logit_result_closed_prob_binaryFixed,
+                                    # closed_property_probability_threshold_prediction_toBinaryFixed=y_multi_logit_result_closed_prob_binary_thresholdFixed,
 
 
                                     distant_supervision_open_withMAPEThreshold=y_distant_sv_property_openThreshold,
@@ -439,14 +364,18 @@ if __name__ == "__main__":
                                     test_data_property_label=test['property'],
                                     andreas_prediction=y_pospred,
                                     threshold=np.full(len(y_true_claim), threshold),
-                                    probThreshold = np.full(len(y_true_claim), probThreshold)
+                                    probThreshold = np.full(len(y_true_claim), probThreshold),
+                                    cost_sensitive_open= y_open_pred_test_cslr,
+                                    cost_sensitive_closed = y_closed_pred_test_cslr,
+                                    cost_sensitive_open_binary= y_open_pred_test_cslr_binary,
+                                    cost_sensitive_closed_binary = y_closed_pred_test_cslr_binary
                                     ))
 
     # print str(os.path.splitext(sys.argv[2])[0]).split("/")
-    # TODO This was an issue on command line - change to [2] if on command line
-    testSet = str(os.path.splitext(sys.argv[2])[0]).split("/")[2]
+    # TODO This was an issue on command line - change to [2] if on command line and 8 if not
+    testSet = str(os.path.splitext(sys.argv[2])[0]).split("/")[8]
 
-    resultPath = os.path.join(sys.argv[4] + "test/" + testSet + '_' + str(threshold) + '_' + str(probThreshold)+ '_regressionResult.csv')
+    resultPath = os.path.join(sys.argv[4] + "test/" + testSet + '_' + str(threshold) + '_' + str(probThreshold)+ '_costregressionResult.csv')
 
     output.to_csv(path_or_buf=resultPath, encoding='utf-8', index=False, cols=[
         'parsed_sentence',
@@ -457,17 +386,17 @@ if __name__ == "__main__":
         'closed_property_prediction_withMAPEthreshold',
         'closed_property_prediction_withMAPEthreshold_toBinary',
 
-        'open_property_probability_prediction_toBinary',
-        'open_property_probability_threshold_prediction_toBinary',
-
-        'closed_property_probability_prediction_toBinary',
-        'closed_property_probability_threshold_prediction_toBinary',
-
-        'open_property_probability_prediction_toBinaryFixed',
-        'open_property_probability_threshold_prediction_toBinaryFixed',
-
-        'closed_property_probability_prediction_toBinaryFixed',
-        'closed_property_probability_threshold_prediction_toBinaryFixed',
+        # 'open_property_probability_prediction_toBinary',
+        # 'open_property_probability_threshold_prediction_toBinary',
+        #
+        # 'closed_property_probability_prediction_toBinary',
+        # 'closed_property_probability_threshold_prediction_toBinary',
+        #
+        # 'open_property_probability_prediction_toBinaryFixed',
+        # 'open_property_probability_threshold_prediction_toBinaryFixed',
+        #
+        # 'closed_property_probability_prediction_toBinaryFixed',
+        # 'closed_property_probability_threshold_prediction_toBinaryFixed',
 
         'distant_supervision_open_withMAPEThreshold',
         'distant_supervision_closed_withMAPEThreshold',
@@ -479,7 +408,12 @@ if __name__ == "__main__":
         'andreas_property_label',
         'andreas_prediction',
         'threshold',
-        'probThreshold'
+        'probThreshold',
+        'cost_sensitive_open',
+        'cost_sensitive_closed',
+        'cost_sensitive_open_binary',
+        'cost_sensitive_closed_binary'
+
     ])
 
     # TODO - need to create a per property chart
@@ -538,15 +472,17 @@ if __name__ == "__main__":
 
                y_multi_logit_result_closed_threshold_binary,
 
-               y_multi_logit_result_open_prob_binary,
-               y_multi_logit_result_open_prob_binary_threshold,
-               y_multi_logit_result_closed_prob_binary,
-               y_multi_logit_result_closed_prob_binary_threshold,
-
-               y_multi_logit_result_open_prob_binaryFixed,
-               y_multi_logit_result_open_prob_binary_thresholdFixed,
-               y_multi_logit_result_closed_prob_binaryFixed,
-               y_multi_logit_result_closed_prob_binary_thresholdFixed
+               # y_multi_logit_result_open_prob_binary,
+               # y_multi_logit_result_open_prob_binary_threshold,
+               # y_multi_logit_result_closed_prob_binary,
+               # y_multi_logit_result_closed_prob_binary_threshold,
+               #
+               # y_multi_logit_result_open_prob_binaryFixed,
+               # y_multi_logit_result_open_prob_binary_thresholdFixed,
+               # y_multi_logit_result_closed_prob_binaryFixed,
+               # y_multi_logit_result_closed_prob_binary_thresholdFixed
+                y_open_pred_test_cslr_binary,
+                y_closed_pred_test_cslr_binary
 
                ]
     #
@@ -566,15 +502,17 @@ if __name__ == "__main__":
 
                     'Closed_Property_Bag_of_Words_Multinomial_Logistic_Regression_w_Binary_Evaluation_&_MAPE_Threshold',
 
-                    'Open_Property_Probability_Prediction',
-                    'Open_Property_Probability_Prediction_MAPEThreshold',
-                    'Closed_Property_Probability_Prediction',
-                    'Closed_Property_Probability_Prediction_MAPEThreshold',
-
-                    'Open_Property_Probability_PredictionFixed',
-                    'Open_Property_Probability_Prediction_MAPEThresholdFixed',
-                    'Closed_Property_Probability_PredictionFixed',
-                    'Closed_Property_Probability_Prediction_MAPEThresholdFixed'
+                    # 'Open_Property_Probability_Prediction',
+                    # 'Open_Property_Probability_Prediction_MAPEThreshold',
+                    # 'Closed_Property_Probability_Prediction',
+                    # 'Closed_Property_Probability_Prediction_MAPEThreshold',
+                    #
+                    # 'Open_Property_Probability_PredictionFixed',
+                    # 'Open_Property_Probability_Prediction_MAPEThresholdFixed',
+                    # 'Closed_Property_Probability_PredictionFixed',
+                    # 'Closed_Property_Probability_Prediction_MAPEThresholdFixed'
+                    'Cost Sensitive Classification Open',
+                    'Cost Sensitive Classification Closed'
                     ])
 
     # summaryDF.set_index(['A','B'])
@@ -582,8 +520,8 @@ if __name__ == "__main__":
 
     print summaryDF
     #
-    # precisionF1Path = os.path.join(sys.argv[4] + "test/" + testSet + '_' + str(threshold) + '_summaryEval.csv')
-    # summaryDF.to_csv(path_or_buf=precisionF1Path, encoding='utf-8')
+    precisionF1Path = os.path.join(sys.argv[4] + "test/" + testSet + '_' + str(threshold) + '_summaryCostEval.csv')
+    summaryDF.to_csv(path_or_buf=precisionF1Path, encoding='utf-8')
 
     try:
         if os.stat(sys.argv[5]).st_size > 0:

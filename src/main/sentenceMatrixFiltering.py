@@ -46,33 +46,6 @@ with open(sys.argv[4]) as sentenceSlotsFull:
 print "Model sentences before filtering:", len(pattern2locations2values['sentences'])
 print "labelling sentences before filtering:", len(fullSentenceSlots)
 
-# print type(pattern2locations2values)
-# print type(fullSentenceSlots)
-
-# def f7(seq):
-#     seen = set()
-#     seen_add = seen.add
-#     return [x for x in seq if not (x in seen or seen_add(x))]
-
-# Deduplicate files
-# seen = set()
-# pattern2locations2valuesUnique = [{'sentences':[]}]
-# for d in pattern2locations2values["sentences"]:
-#     print d
-#     t = tuple(sorted(d.items()))
-#     print t
-#     if t not in seen:
-#         seen.add(t)
-#         pattern2locations2valuesUnique["sentences"].append(d)
-
-
-# pattern2locations2values = f7(pattern2locations2values)
-# fullSentenceSlots = f7(fullSentenceSlots)
-
-
-# pattern2locations2valuesUnique = OrderedDict((frozenset(item.items()),item) for item in pattern2locations2values['sentences']).itervalues()
-# fullSentenceSlotsUnique = OrderedDict((frozenset(item.items()),item) for item in fullSentenceSlots).itervalues()
-
 getvals = operator.itemgetter(u"parsedSentence", u"sentence",u"location-value-pair")
 getvalsLabels = operator.itemgetter(u"sentence")
 
@@ -88,19 +61,6 @@ result = []
 for k, g in itertools.groupby(fullSentenceSlots, getvalsLabels):
     result.append(g.next())
 fullSentenceSlots[:] = result
-
-
-# Deduplicate files
-# seen = set()
-# fullSentenceSlotsUnique = []
-# for d in fullSentenceSlots:
-#     t = tuple(d.items())
-#     if t not in seen:
-#         seen.add(t)
-#         fullSentenceSlotsUnique.append(d)
-#
-# pattern2locations2values = pattern2locations2valuesUnique
-# fullSentenceSlots = fullSentenceSlotsUnique
 
 print "Unique sentences before filtering:", len(pattern2locations2values['sentences'])
 print "Unique labelling sentences before filtering:", len(fullSentenceSlots)
