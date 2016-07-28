@@ -127,7 +127,7 @@ def test_features(testSentences):
 
 def probabilityThreshold(classifier,prediction, numberProperties, testCatLabels,fixedProbThreshold):
     print "Number of properties is", numberProperties
-    meanProbThreshold = 1 / float(numberProperties).
+    meanProbThreshold = 1 / float(numberProperties)
     print "Threshold is", meanProbThreshold
     print "Prob threshold is", fixedProbThreshold
 
