@@ -25,6 +25,12 @@ import pprint
 TODO - this needs to account for any further cleaning beyond aliasing we need to do, for example not including anything where the value is 0.
 '''
 
+# data/output/sentenceRegionValue.json
+# data/aliases.json
+# data/sentenceMatrixFiltered.json
+# data/output/sentenceSlotsFiltered.json
+# data/output/uniqueSentenceLabels.json
+
 # We distinguish between the two by re- quiring each region-pattern combination to have appeared at least twice.
 
 # python src/main/sentenceMatrixFiltering.py data/output/sentenceRegionValue.json data/aliases.json data/sentenceMatrixFiltered.json
@@ -62,8 +68,22 @@ for k, g in itertools.groupby(fullSentenceSlots, getvalsLabels):
     result.append(g.next())
 fullSentenceSlots[:] = result
 
-print "Unique sentences before filtering:", len(pattern2locations2values['sentences'])
-print "Unique labelling sentences before filtering:", len(fullSentenceSlots)
+print "Unique sentences after filtering:", len(pattern2locations2values['sentences'])
+print "Unique labelling sentences after filtering:", len(fullSentenceSlots)
+
+# Now remove any sentences with values of 0:
+
+
+finalpattern2locations2values={}
+finalpattern2locations2values['sentences']=[]
+
+for i,sentence in enumerate(pattern2locations2values['sentences']):
+    for key, value in sentence['location-value-pair'].iteritems():
+        if value!=0.0:
+            finalpattern2locations2values['sentences'].append(sentence)
+
+
+print "Unique sentences after deleting 0 values:", len(finalpattern2locations2values['sentences'])
 
 #load the file
 print "Loading the aliases file\n"
@@ -95,7 +115,7 @@ for alias, region in alias2region.items():
 
 print "Applying aliases for model\n"
 
-for index, dataTriples in enumerate(pattern2locations2values["sentences"]):
+for index, dataTriples in enumerate(finalpattern2locations2values["sentences"]):
     # print index
     # so here are the locations
     # we must be careful in case two or more locations are collapsed to the same region
@@ -146,7 +166,7 @@ for index, dataTriples in enumerate(pattern2locations2values["sentences"]):
 print "Writing to filtered file for model\n"
 
 with open(sys.argv[3], "wb") as out:
-    json.dump(pattern2locations2values, out,indent=4)
+    json.dump(finalpattern2locations2values, out,indent=4)
 
 print "Writing to filtered file for manual labelling\n"
 

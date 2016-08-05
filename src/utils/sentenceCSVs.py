@@ -31,7 +31,7 @@ with open(sys.argv[6]) as fullPropFile:
 with open(sys.argv[2], 'w') as csvfile:
     fieldnames = ['sentence',
                   'Which of the statistics is this sentence talking about, if any?',
-                  'Is the sentence a claim, no_claim or n/a?'
+                  'Is the sentence a claim about an economic statistic that can be fact checked?'
                   ]
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     writer.writeheader()
@@ -77,7 +77,7 @@ with open(sys.argv[3], 'w') as csvfile:
         # print sentence['parsedSentence']
         if property not in ['rent50_0','rent50_1','rent50_2','rent50_3','rent50_4']:
             writer.writerow({'statistic': property})
-    for property in properties:
+    for property in sorted(properties):
         if property not in fullProperties:
             property = unicode(property).encode("utf-8").split("/")[3]
             writer.writerow({'statistic': property})

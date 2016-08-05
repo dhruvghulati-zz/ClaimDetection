@@ -14,6 +14,7 @@ http://stackoverflow.com/questions/38509239/need-to-remove-items-from-both-a-lis
 '''
 # this function performs a dictNER matching to help with names that Stanford NER fails
 # use with caution, it ignores everything apart from the tokens, over-writing existing NER tags
+
 def dictLocationMatching(sentence, tokenizedLocations):
     # first re-construct the sentence as a string
     wordsInSentence = []
@@ -96,6 +97,24 @@ def getLocations(sentence):
     return tokenIDs2location
 
 
+def buildDAGfromSentence(sentence):
+    sentenceDAG = networkx.DiGraph()
+    for idx, token in enumerate(sentence["tokens"]):
+        sentenceDAG.add_node(idx, word=token["word"])
+        sentenceDAG.add_node(idx, lemma=token["lemma"])
+        sentenceDAG.add_node(idx, ner=token["ner"])
+        sentenceDAG.add_node(idx, pos=token["pos"])
+
+    # and now the edges:
+    for dependency in sentence["dependencies"]:
+        sentenceDAG.add_edge(dependency["head"], dependency["dep"], label=dependency["label"])
+        # add the reverse if one doesn't exist
+        # if an edge exists, the label gets updated, thus the standard edges do
+        if not sentenceDAG.has_edge(dependency["dep"], dependency["head"]):
+            sentenceDAG.add_edge(dependency["dep"], dependency["head"], label="-" + dependency["label"])
+    return sentenceDAG
+
+
 def fixSlots(sampleTokens,tokenIDs2location,tokenIDs2number):
     # print "Old tokens are",sampleTokens
     #
@@ -146,7 +165,15 @@ def fixSlots(sampleTokens,tokenIDs2location,tokenIDs2number):
     return newTokens, newlocationTokenIDs,newnumberTokenIDs
 
 
-# python src/main/sentenceSlots.py data/train_jsons data/output/sentenceRegionValue.json data/locationNames data/test_jsons data/output/testData.json data/output/sentenceSlotsFull.json
+# data/train_jsons
+# data/output/sentenceRegionValue.json
+# data/locationNames
+# data/test_jsons
+# data/output/testData.json
+# data/output/sentenceSlotsFiltered.json
+# 0.3
+# data/output/sentenceSlotsDiscard.json
+
 if __name__ == "__main__":
 
     parsedJSONDir = sys.argv[1]
@@ -203,6 +230,11 @@ if __name__ == "__main__":
             # if there was at least one location and one number build the dependency graph:
             # Check if len(sentence["tokens"])<120 step is valid
             if len(tokenIDs2number) > 0 and len(tokenIDs2location) > 0 and len(sentence["tokens"])<120:
+
+                sentenceDAG = buildDAGfromSentence(sentence)
+
+                print "Dependencies are",sentenceDAG
+
                 wordsInSentence = []
 
                 for token in sentence["tokens"]:

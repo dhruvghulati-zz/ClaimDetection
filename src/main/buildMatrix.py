@@ -139,7 +139,7 @@ def getShortestDepPaths(sentenceDAG, locationTokenIDs, numberTokenIDs):
                 if (len(shortestPaths) == 0) or len(shortestPaths[0]) > len(tempShortestPaths[0]):
                     shortestPaths = tempShortestPaths
                 # if they have equal length add them
-                elif  len(shortestPaths[0]) == len(tempShortestPaths[0]):
+                elif len(shortestPaths[0]) == len(tempShortestPaths[0]):
                     shortestPaths.extend(tempShortestPaths)
             # if not paths were found, do nothing
             except networkx.exception.NetworkXNoPath:
@@ -331,11 +331,15 @@ if __name__ == "__main__":
             if len(tokenIDs2number) > 0 and len(tokenIDs2location) > 0 and len(sentence["tokens"])<120:
                 
                 sentenceDAG = buildDAGfromSentence(sentence)
+
+                print "Dependency path is",sentenceDAG
                 
                 wordsInSentence = [] 
                 for token in sentence["tokens"]:
                     wordsInSentence.append(token["word"])
                 sample = " ".join(wordsInSentence)
+
+                print "Sentence is ",sample
     
                 # for each pair of location and number 
                 # get the pairs of each and find their dependency paths (might be more than one) 
@@ -345,11 +349,13 @@ if __name__ == "__main__":
     
                         # keep all the shortest paths between the number and the tokens of the location
                         shortestPaths = getShortestDepPaths(sentenceDAG, locationTokenIDs, numberTokenIDs)
+                        print "Shortest paths are",shortestPaths
                         
                         # ignore paths longer than some number deps (=tokens_on_path + 1)
                         if len(shortestPaths) > 0 and len(shortestPaths[0]) < 10:
                             for shortestPath in shortestPaths:
                                 pathStrings = depPath2StringExtend(sentenceDAG, shortestPath, locationTokenIDs, numberTokenIDs)
+                                print "Path strings are",pathStrings
                                 for pathString in pathStrings:
                                     if pathString not in pattern2location2values:
                                         pattern2location2values[pathString] = {}
@@ -365,7 +371,8 @@ if __name__ == "__main__":
                                         pattern2sentences[pathString] = [sample]
                                     
                         # now get the surface strings 
-                        surfacePatternTokenSeqs = getSurfacePatternsExtend(sentence, locationTokenIDs, numberTokenIDs)   
+                        surfacePatternTokenSeqs = getSurfacePatternsExtend(sentence, locationTokenIDs, numberTokenIDs)
+                        print "Surface pattern token sequences",surfacePatternTokenSeqs
                         for surfacePatternTokens in surfacePatternTokenSeqs:
                             if len(surfacePatternTokens) < 15:
                                 surfaceString = ",".join(surfacePatternTokens)

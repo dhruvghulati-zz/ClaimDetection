@@ -193,21 +193,21 @@ if __name__ == "__main__":
     # TODO This was an issue on command line - change to [2] if on command line
     testSet = str(os.path.splitext(sys.argv[2])[0]).split("/")[2]
 
-    multi_logit = LogisticRegression(fit_intercept=True, class_weight='auto', multi_class='multinomial',
+    multi_logit = LogisticRegression(fit_intercept=True, class_weight='balanced', multi_class='multinomial',
                                      solver='newton-cg')
 
 
 
-    multi_logit_threshold = LogisticRegression(fit_intercept=True, class_weight='auto', multi_class='multinomial',
+    multi_logit_threshold = LogisticRegression(fit_intercept=True, class_weight='balanced', multi_class='multinomial',
                                                solver='newton-cg')
 
 
 
-    closed_multi_logit = LogisticRegression(fit_intercept=True, class_weight='auto', multi_class='multinomial',
+    closed_multi_logit = LogisticRegression(fit_intercept=True, class_weight='balanced', multi_class='multinomial',
                                             solver='newton-cg')
 
 
-    closed_multi_logit_threshold = LogisticRegression(fit_intercept=True, class_weight='auto',
+    closed_multi_logit_threshold = LogisticRegression(fit_intercept=True, class_weight='balanced',
                                                       multi_class='multinomial',
                                                       solver='newton-cg')
 
@@ -392,7 +392,7 @@ if __name__ == "__main__":
                                     ))
 
 
-    resultPath = os.path.join(sys.argv[4] + '/'+testSet + '_' + str(threshold) + '_' + '_regressionResult.csv')
+    resultPath = os.path.join(sys.argv[4]+testSet + '_' + str(threshold) + '_' + '_regressionResult.csv')
 
     output.to_csv(path_or_buf=resultPath, encoding='utf-8', index=False, cols=[
         'parsed_sentence',

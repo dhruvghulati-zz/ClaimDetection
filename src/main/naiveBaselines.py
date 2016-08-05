@@ -302,9 +302,9 @@ if __name__ == "__main__":
 
     # print str(os.path.splitext(sys.argv[2])[0]).split("/")
     # TODO This was an issue on command line - change to [2] if on command line, 8 if not
-    testSet = str(os.path.splitext(sys.argv[2])[0]).split("/")[8]
+    testSet = str(os.path.splitext(sys.argv[2])[0]).split("/")[2]
 
-    resultPath = os.path.join(sys.argv[4] + "test/" + testSet + '_mainRegressionResult.csv')
+    resultPath = os.path.join(sys.argv[4] + testSet + '_mainRegressionResult.csv')
 
     output.to_csv(path_or_buf=resultPath, encoding='utf-8', index=False, cols=[
         'parsed_sentence',

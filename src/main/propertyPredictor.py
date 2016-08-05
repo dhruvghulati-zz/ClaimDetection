@@ -3,6 +3,7 @@ This is a file that predicts the closest statistical property for each region-va
 
 I use a MAPE method to calculate.
 '''
+from __future__ import division
 
 import operator
 import numpy as np
@@ -44,7 +45,10 @@ def loadMatrix(jsonFile):
 
 
 def absError(numer,denom):
-    return abs(numer-denom)/np.abs(float(denom))
+    # print "Denominator is ",denom
+    # print "Numerator is",numer
+    # print "Error is ",abs(denom-numer)/np.abs(float(numer)),"\n"
+    return abs(denom-numer)/np.abs(float(numer))
 
 def findMatch(target, country):
     # print "Property-value pairs for match is ", country
@@ -53,13 +57,15 @@ def findMatch(target, country):
     # Remove all values with no value for the property we want e.g. Qatar
     filtered_country = {k: v for k, v in filtered_country.items() if v}
     # print "Filtered country is",filtered_country
-    # openCostVector = np.sort([absError(target, v) for k, v in country.items()])
-    # closedCostVector = np.sort([absError(target, v) for k, v in filtered_country.items()])
+    openCostVector = np.sort([absError(target, v) for k, v in country.items()])
+    closedCostVector = np.sort([absError(target, v) for k, v in filtered_country.items()])
     #
     # print "Open Cost array is",openCostVector
     # print "Closed Cost array is",closedCostVector
     openMatch = min(country, key= lambda x: absError(target, country.get(x)))
     closedMatch = min(filtered_country, key= lambda x: absError(target, filtered_country.get(x)))
+    # print "Open match is ",openMatch
+    # print "Closed match is ",closedMatch
 
     openCostVectorRem = np.sort([absError(target, v) for k,v in country.items() if k is not openMatch])
     closedCostVectorRem = np.sort([absError(target, v) for k,v in filtered_country.items() if k is not closedMatch])
@@ -67,7 +73,7 @@ def findMatch(target, country):
     # print "Open Cost array is",openCostVectorRem
     # print "Closed Cost array is",closedCostVectorRem
 
-    return openMatch, closedMatch,openCostVectorRem,closedCostVectorRem
+    return openMatch, closedMatch,openCostVector,closedCostVector
 
 def update(sentence):
 
@@ -91,33 +97,31 @@ def update(sentence):
         country = property2region2value[c]
         # This is the open matched property
         matchedProperty, closedMatch, openCostArr, closedCostArr = findMatch(target,country)
+        # print "This is the openCostArr",openCostArr
+        # print "This is the closedCostArr",closedCostArr
         # print "This is matched property: ", matchedProperty
-        error = absError(target, country.get(matchedProperty))
-        closedError = absError(target, country.get(closedMatch))
-        # Now analyse the distribution of the costs. One method is to remove the value I chose and look at the median, IQR and mode of the other values.
-        openIQR = np.subtract(*np.percentile(openCostArr, [75, 25]))
-        closedIQR = np.subtract(*np.percentile(closedCostArr, [75, 25]))
-        openMedian = np.median(openCostArr)
-        closedMedian = np.median(openCostArr)
+        error = float(absError(target, country.get(matchedProperty)))
+        closedError = float(absError(target, country.get(closedMatch)))
+        # print "Closed error is",closedError
+        # print "Open error is",error
 
-        # print "Open IQR is",openIQR
-        # print "Closed IQR is",closedIQR
-        # print "Open Median is",openMedian
-        # print "Closed Median is",closedMedian,"\n"
-
-        res.update({'predictedPropertyClosed': closedMatch, 'closedMeanAbsError': closedError,'costSensitiveClosedError1':float(closedError)/float(closedIQR*len(closedCostArr)),'costSensitiveClosedError2':float(closedError)/float(closedMedian*len(closedCostArr))})
-        res.update({'predictedPropertyOpen': matchedProperty, 'meanAbsError': error,'costSensitiveOpenError1':float(error)/float(openIQR*len(openCostArr)),'costSensitiveOpenError2':float(error)/float(openMedian*len(openCostArr))})
+        res.update({'predictedPropertyClosed': closedMatch, 'closedMeanAbsError': closedError,
+                    'closedCostArr':closedCostArr.tolist()
+                    })
+        res.update({'predictedPropertyOpen': matchedProperty, 'meanAbsError': error,
+                    'openCostArr':openCostArr.tolist()
+                    })
         if error<threshold:
-            res.update({'predictedPropertyOpenThreshold': matchedProperty, 'meanAbsError': error})
+            res.update({'predictedPropertyOpenThreshold': matchedProperty})
             positiveOpenThresholdInstances += 1
         else:
-            res.update({'predictedPropertyOpenThreshold': "no_region", 'meanAbsError': error})
+            res.update({'predictedPropertyOpenThreshold': "no_region"})
             negativeOpenThresholdInstances +=1
         if closedError<threshold:
-            res.update({'predictedPropertyClosedThreshold': closedMatch, 'closedMeanAbsError': closedError})
+            res.update({'predictedPropertyClosedThreshold': closedMatch})
             positiveClosedThresholdInstances +=1
         else:
-            res.update({'predictedPropertyClosedThreshold': "no_region", 'closedMeanAbsError': closedError})
+            res.update({'predictedPropertyClosedThreshold': "no_region"})
             negativeClosedThresholdInstances +=1
         predictionSentences.append(res)
     else:

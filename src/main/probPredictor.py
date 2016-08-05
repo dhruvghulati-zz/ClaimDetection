@@ -20,7 +20,7 @@ def probabilityThreshold(categories,prediction, numberProperties, testCatLabels,
 
     print "Categories are", categories
 
-    print "Probabilities are", prediction
+    # print "Probabilities are", prediction
 
     print "Dimensions of prediction matrix are",prediction.shape
 
@@ -29,7 +29,7 @@ def probabilityThreshold(categories,prediction, numberProperties, testCatLabels,
     probPrediction = np.copy(prediction)
 
     print type(probPrediction)
-    print "Probabilities are", probPrediction
+    # print "Probabilities are", probPrediction
 
     for i, label in enumerate(testCatLabels):
         # If this doesn't find an index for the test labels, it means we haven't found a binary label for that property, wasn't even in our prediction, so actually should be given the index for no_region'
@@ -38,7 +38,7 @@ def probabilityThreshold(categories,prediction, numberProperties, testCatLabels,
             index = [-1]
         catIndex.append(index)
 
-    print "Categorical indices pre-ravel are", catIndex
+    # print "Categorical indices pre-ravel are", catIndex
 
     catIndex = np.array(catIndex).ravel()
     print "New categorical indices are", catIndex
@@ -59,8 +59,8 @@ def probabilityThreshold(categories,prediction, numberProperties, testCatLabels,
             else:
                 probPrediction[i][j] = 0
 
-    print "Binary labels are", prediction
-    print "Fixed binary labels are", probPrediction
+    # print "Binary labels are", prediction
+    # print "Fixed binary labels are", probPrediction
 
     print "Number of 0s are ", prediction.size - np.count_nonzero(prediction)
     print "Number of 0s in fixed binary labels are ", probPrediction.size - np.count_nonzero(probPrediction)

@@ -11,6 +11,8 @@ from random import shuffle
 import numpy as np
 
 
+# TODO - need to make sure I can account for there not being some sentences.
+
 predictionSentences = []
 
 # import sys; print(sys.executable)
@@ -59,7 +61,7 @@ def loadMatrix(jsonFile):
 
 
 def absError(numer,denom):
-    return abs(numer-denom)/np.abs(float(denom))
+    return abs(denom-numer)/np.abs(float(numer))
 
 def findMatch(target, country):
     filtered_country = {property: country.get(property) for property in properties}
@@ -112,14 +114,14 @@ def testSentenceLabels(dict_list):
     for i, property in enumerate(properties):
         temp_properties.append(property.split("/")[3])
         # TODO - Command line issue as I had hard coded the location of these files ../../, in command line remove
-    for subdir, dirs, files in os.walk('data/labeled_claims'):
+    print "Temporary properties are",len(temp_properties)
+    for subdir, dirs, files in os.walk('../../data/labeled_claims'):
         # This is causing errors
-
         for file in files:
             # print os.path.join(subdir, file)
             filepath = subdir + os.sep + file
-
             if filepath.endswith(".xlsx"):
+                # print "Filepath is",filepath
                 wb = xlrd.open_workbook(filepath, encoding_override="utf-8")
                 for s in wb.sheets():
                     # read header values into the list
@@ -129,20 +131,50 @@ def testSentenceLabels(dict_list):
                     kbval_index = keys.index("kb_value")
                     value_index = keys.index("extracted_value")
                     alias_index = keys.index("alias")
-                    # keys = ['Bla']
-                    # for dict in dict_list:
+                    sentence_index = keys.index("sentence")
+                    country_index = keys.index("country")
                     for row_index in xrange(1, s.nrows):
                         sentence = {}
                         sentence['parsedSentence'] = {}
                         sentence['property'] = {}
                         sentence['mape'] = s.cell(row_index, mape_index).value
                         sentence['claim'] = s.cell(row_index, claim_index).value
+                        # TODO - on command line this should change to remove ../..
+                        if filepath=="../../data/labeled_claims/internet_users_percent_population_claims.xlsx" or filepath=="../../data/labeled_claims/population_growth_rate_claims.xlsx":
+                            # print filepath
+                            # print "False"
+                            extracted_country = s.cell(row_index, country_index).value
+                            # print "Country is ",extracted_country
+                            sentence_noSlots = s.cell(row_index, sentence_index).value
+                            # print "Sentence is ",sentence_noSlots
+                            extracted_value = s.cell(row_index, value_index).value
+                            # print "Value is ",extracted_value
+                            # sentence_noSlots.replace(str(extracted_country),"<location>empty</location>")
+                            # sentence_noSlots.replace(str(extracted_value),"<number>empty</number>")
+                            finalSentence = sentence_noSlots.replace(str(extracted_country),"<location>empty</location>").replace(str(extracted_value),"<number>empty</number>")
+                            # sentenceTokens = sentence_noSlots.split()
+                            # for i,token in enumerate(sentenceTokens):
+                            #     if token==extracted_country:
+                            #         sentenceTokens[i]="<location>empty</location>"
+                            #     if token==extracted_value:
+                            #         sentenceTokens[i]="<number>empty</number>"
+                            # sentence_noSlots = (" ").join(sentenceTokens)
+                            # print "New sentence is",finalSentence
+                            sentence['parsedSentence'] = finalSentence
+                        else:
+                            for col_index in xrange(s.ncols):
+                                if isinstance(s.cell(row_index,col_index).value, unicode):
+                                    # print "True"
+                                        if s.cell(row_index,col_index).value.find(r"<location>")>-1 or \
+                                                    s.cell(row_index,col_index).value.find(r"<number>")>-1:
+                                            sentence['parsedSentence'] = s.cell(row_index,col_index).value
+
                         if sentence['claim'] =="Y":
                             sentence['claim'] = 1
                         # Note some sentences have a question mark as a claim
                         # else:
                         #     sentence['claim'] = 0
-                        elif sentence['claim'] =="N":
+                        elif sentence['claim']=="N":
                             sentence['claim'] = 0
                         sentence['kb_value'] = s.cell(row_index, kbval_index).value
                         # sentence['value'] = s.cell(row_index, mape_index).value
@@ -150,15 +182,13 @@ def testSentenceLabels(dict_list):
                         # dict_list = [dict() for x in xrange(1, s.nrows)]
                         # d = {keys[mape_index]: s.cell(row_index, mape_index).value}
                         # dict_list.append(d)
-
                         for col_index in xrange(s.ncols):
                             if isinstance(s.cell(row_index,col_index).value, unicode):
-                                if s.cell(row_index,col_index).value.find("<location>")>-1 or s.cell(row_index,col_index).value.find("<number>")>-1:
-                                    sentence['parsedSentence'] = s.cell(row_index,col_index).value
                                 if s.cell(row_index,col_index).value in temp_properties:
                                     sentence['property'] = "/location/statistical_region/" + s.cell(row_index,col_index).value
-                                    # print "true"
-                        dict_list.append(sentence)
+                                        # print "true"
+                        if sentence['parsedSentence']:
+                            dict_list.append(sentence)
 
     # print dict_list
     return dict_list
@@ -171,8 +201,9 @@ def labelSlotFiltering(testLabels):
     for i, dataTriples in enumerate(testLabels):
         # print "Old sentence is" ,dataTriples['parsedSentence']
         if dataTriples['parsedSentence']:
-            slotText = re.sub(r'(?s)(<location>)(.*?)(</location>)', r"LOCATION_SLOT", dataTriples['parsedSentence'])
-            slotText = re.sub(r'(?s)(<number>)(.*?)(</number>)', r"NUMBER_SLOT", slotText)
+            # slotText = re.sub(r'(?s)(<location>)(.*?)(</location>)', r"LOCATION_SLOT", dataTriples['parsedSentence'])
+            slotText = re.sub(r'(<location>.*</location>)', r"LOCATION_SLOT", dataTriples['parsedSentence'])
+            slotText = re.sub(r'(<number>.*</number>)', r"NUMBER_SLOT", slotText)
             # print "New sentence is ", slotText
             dataTriples['parsedSentence'] = slotText
     # print "Total test labels is", len(testLabels)
@@ -188,11 +219,11 @@ def labelSlotFiltering(testLabels):
         else:
             dataTriples['mape_label']=0
             # print "New sentence is ", slotText
-    print "Total test labels is", len(testLabels)
-    print "Total positive labels is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(testLabels) if dataTriples['mape_label']==1])
-    print "Total negative labels is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(testLabels) if dataTriples['mape_label']==0])
-    print "Total test labels with parsed sentences is ",len([dataTriples['parsedSentence'] for a,dataTriples in enumerate(testLabels) if dataTriples['parsedSentence']!={}])
-    print "Total test labels with no mape is ",len([dataTriples['mape'] for a,dataTriples in enumerate(testLabels) if dataTriples['mape']=={}])
+    # print "Total test labels is", len(testLabels)
+    # print "Total positive labels is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(testLabels) if dataTriples['mape_label']==1])
+    # print "Total negative labels is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(testLabels) if dataTriples['mape_label']==0])
+    # print "Total test labels with parsed sentences is ",len([dataTriples['parsedSentence'] for a,dataTriples in enumerate(testLabels) if dataTriples['parsedSentence']!={}])
+    # print "Total test labels with no mape is ",len([dataTriples['mape'] for a,dataTriples in enumerate(testLabels) if dataTriples['mape']=={}])
     # print "Total test labels with no property is ",len([dataTriples['property'] for a,dataTriples in enumerate(testLabels) if dataTriples['property']=={}])
     # Here I give "no region" to any sentence not a claim
     for i, dataTriples in enumerate(testLabels):
@@ -222,7 +253,21 @@ if __name__ == "__main__":
     dict_list = []
 
     testLabels = testSentenceLabels(dict_list)
+
+    print "Extracted test labels with parsed sentences from Excel sheets is", len(testLabels)
+
+
+
     testLabels = labelSlotFiltering(testLabels)
+
+    # print "Total positive labels is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(testLabels) if dataTriples['mape_label']==1])
+    # print "Total negative labels is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(testLabels) if dataTriples['mape_label']==0])
+
+    # print "Total test labels with no mape is ",len([dataTriples['mape'] for a,dataTriples in enumerate(testLabels) if dataTriples['mape']=={}])
+
+    print "Total test labels with property is",len([dataTriples['property'] for a,dataTriples in enumerate(testLabels) if dataTriples['property']!={}])
+
+    # print "Total test labels with parsed sentences is ",len([dataTriples['parsedSentence'] for a,dataTriples in enumerate(testLabels) if dataTriples['parsedSentence']!={}])
 
     cleanTestLabels = []
 
@@ -231,7 +276,7 @@ if __name__ == "__main__":
         if dataTriples['mape']!={} and dataTriples['parsedSentence']!={} and dataTriples['property']!={} and dataTriples['claim']!="?":
             cleanTestLabels.append(dataTriples)
 
-    print "Total clean test labels is", len(cleanTestLabels),"\n"
+    print "Total clean test labels with no ? claim is", len(cleanTestLabels),"\n"
 
     properties.append("no_region")
 
