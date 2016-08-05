@@ -8,11 +8,14 @@ from nltk.corpus import stopwords  # Import the stop word list
 from numpy.matlib import empty
 import matplotlib.pyplot as plt
 import json
+from time import asctime, time
 import numpy as np
+import inspect
 import pandas as pd
 from sklearn import datasets
 from sklearn import preprocessing
 import subprocess
+import csv
 from sklearn.cross_validation import train_test_split
 import sys
 from sklearn.metrics import precision_score
@@ -25,9 +28,8 @@ from sklearn.linear_model import LogisticRegression
 import os
 from itertools import repeat
 
-# np.set_printoptions(threshold=np.inf)
-
 rng = np.random.RandomState(101)
+parseStr = lambda x: float(x) if '.' in x else int(x)
 
 def sigmoid(x):
   return 1 / (1 + math.exp(-x))
@@ -43,15 +45,176 @@ def sentence_to_words(sentence, remove_stopwords=False):
         words = [w for w in words if not w in stops]
     return (words)
 
-# def costMatrix(inputSentences):
-#     ocmt = empty((len(inputSentences), 4))
-#     for i in xrange(ocmt.shape[0]):
-#         ocmt[i, 0] = np.random.random()
-#     ocmt[:, 1] = ocmt[:, 0] + 1
-#     ocmt[:, 2] = 10*ocmt[:, 0]
-#     ocmt[:, 3] = ocmt[:, 0]/10
-#     return ocmt
+def genCostMatrices(inputSentences, costMatrix):
+    for i, sentence in enumerate(inputSentences[:15000]):
+        if sentence:
+            # Generate all the variables I need
+            error = sentence['meanAbsError']
+            closedError = sentence['closedMeanAbsError']
 
+            openCostVectorRem = np.sort([value for i,value in enumerate(sentence['openCostArr']) if value is not sentence['meanAbsError']])
+            closedCostVectorRem = np.sort([value for i,value in enumerate(sentence['closedCostArr']) if value is not sentence['closedMeanAbsError']])
+            # print "Sentence is ",sentence['sentence']
+            # print "Error is",sentence['meanAbsError']
+            # print "Remaining array is",openCostVectorRem
+            openIQR = float(np.subtract(*np.percentile(openCostVectorRem, [75, 25])))
+            closedIQR = float(np.subtract(*np.percentile(closedCostVectorRem, [75, 25])))
+            openMedian = float(np.median(openCostVectorRem))
+            closedMedian = float(np.median(closedCostVectorRem))
+
+            openGap = sentence['openCostArr'][1]-sentence['meanAbsError']
+            # print "Open gap is",openGap
+            closedGap = sentence['closedCostArr'][1]-sentence['closedMeanAbsError']
+            # print "Closed gap is",closedGap
+            maxClosedErr = sentence['closedCostArr'][len(sentence['closedCostArr'])-1]
+            # print "maxClosedErr is",maxClosedErr
+            closedRange = np.ptp(sentence['closedCostArr'])
+            # print "Closed range is",closedRange
+
+            ybins = [0,0.25,0.5,0.75,1]
+
+            squeezeClosedArray = np.digitize(sentence['closedCostArr'], ybins, right=False)
+
+            factor = squeezeClosedArray.tolist().count(1)
+            # print "Factor is",factor
+
+            # print "Squeezed closed array is ",squeezeClosedArray
+
+            # calculate the proportional values of samples
+            # p = 1. * np.arange(len(sentence['openCostArr'])) / (len(sentence['openCostArr']) - 1)
+            # print "array is ",sentence['openCostArr']
+            # print "p is ",p
+
+            squeezeClosedArray2 = [val/maxClosedErr for val in sentence['closedCostArr']]
+            # print "array is ",sentence['openCostArr']
+            # print "p2 is ",squeezeClosedArray2
+            # TODO this could be a hyperparam
+            # print "Sum is",sum(float(i) < 0.000000000000001 for i in squeezeClosedArray2)
+
+            closedGapPercent = closedGap/maxClosedErr
+            closedGapPercent2 = closedGap/closedRange
+            # print "closedGapPercent is ",closedGapPercent
+            # TODO - these are the same
+            # print "closedGapPercent2 is",closedGapPercent2
+            #
+            # # plot the sort ed data:
+            # fig = plt.figure()
+            # ax1 = fig.add_subplot(121)
+            # ax1.plot(p, sentence['openCostArr'])
+            # ax1.set_xlabel('$p$')
+            # ax1.set_ylabel('$x$')
+            #
+            # ax2 = fig.add_subplot(122)
+            # ax2.plot(sentence['openCostArr'], p)
+            # ax2.set_xlabel('$x$')
+            # ax2.set_ylabel('$p$')
+            # fig.show()
+            # _ = raw_input("Press [enter] to continue.")
+
+
+
+
+            for key, value in costMatrix.iteritems():
+                # print key, value
+                if str(key).startswith("open"):
+                    if str(key).endswith("1"):
+                        value.append(error)
+                    if str(key).endswith("2"):
+                        value.append(error/float(openIQR*(len(openCostVectorRem)+1)))
+                    if str(key).endswith("3"):
+                        value.append(error/float(openMedian*(len(openCostVectorRem)+1)))
+                else:
+                    if str(key).endswith("1"):
+                        value.append(closedError)
+                    if str(key).endswith("2"):
+                        value.append(closedError/float(closedIQR*(len(closedCostVectorRem)+1)))
+                    if str(key).endswith("3"):
+                        value.append(closedError/float(closedMedian*(len(closedCostVectorRem)+1)))
+    for key, value in costMatrix.iteritems():
+        print key," array is ", value,"\n"
+
+
+
+def genTrainInstances(aRow):
+    userid = str(aRow['userid'])
+    urlid = str(aRow['urlid'])
+    y_row = str(int(float(aRow['rating']))  )
+    rowtag = userid+'_'+urlid
+    rowText = (y_row + " 1.0  " + rowtag + "|user " + userid +" |item " +urlid)
+    return rowText
+
+def genTestInstances(aRow):
+    y_row = str(0)
+    userid = str(aRow['userid'])
+    urlid = str(aRow['urlid'])
+    rowtag = userid+'_'+urlid
+    rowText = (y_row + " 1.0  " + rowtag + "|user " + userid +" |item " +urlid)
+    return rowText
+
+def readPredictFile():
+    y_pred = []
+    with open('../../data/output/cost/csoaa.predict', 'rb') as csvfile:
+        predictions = csv.reader(csvfile, delimiter=' ', quotechar='|')
+        for row in predictions:
+            pred = parseStr(row[0])
+            y_pred.append(pred)
+    return np.asarray(y_pred)
+
+def predict_model():
+    global environmentDict, predictCommand, df_test
+
+    print "Building Test Instances: ", asctime()
+    df_test['TestInstances'] = df_test.apply(genTestInstances, axis=1)
+    print "Finished Generating Test Instances: ", asctime()
+
+    print "Writing Test Instances: ", asctime()
+    testInstances = list(df_test['TestInstances'].values)
+    f = open('test_vw.data','w')
+    f.writelines(["%s\n" % row  for row in testInstances])
+    f.close()
+    print "Finished Writing Test Instances: ", asctime()
+
+    subprocess.call(predictCommand, env=environmentDict)
+
+    df_test['y_pred'] = readPredictFile()
+    return
+
+def train_model():
+    global df_train, trainCommand, environmentDict
+
+    print "Generating VW Training Instances: ", asctime()
+    df_train['TrainInstances'] = df_train.apply(genTrainInstances, axis=1)
+    print "Finished Generating Train Instances: ", asctime()
+
+    print "Writing Train Instances To File: ", asctime()
+    trainInstances = list(df_train['TrainInstances'].values)
+    f = open('train_vw.data','w')
+    f.writelines(["%s\n" % row  for row in trainInstances])
+    f.close()
+    print "Finished Writing Train Instances: ", asctime()
+
+    subprocess.call(trainCommand, env=environmentDict)
+    print "Finished Training: ", asctime()
+    return
+
+def generateDatFiles(costDict, trainingLabels, closedTrainingLabels, trainingFeatures, pathDict):
+
+    # TODO - make sure this opens a fresh file all the time and replaces
+
+    print "There are this many unique labels",len(set(trainingLabels))
+
+    for (model,filepath), (model,costmatrix) in zip(pathDict.items(), costDict.items()):
+        f = open(filepath, 'w')
+        for i, (label,closedLabel, cost,features) in enumerate(zip(trainingLabels,closedTrainingLabels,costmatrix,trainingFeatures)):
+            if str(model).startswith("open"):
+                print "There are this many unique labels",len(set(trainingLabels))
+                line = str(label) + ":" + str(cost) + " " + str(i) + "|" + (" ").join(map(str, features))
+                f.write(line+"\n")
+            else:
+                print "There are this many unique labels",len(set(closedTrainingLabels))
+                line = str(closedLabel) + ":" + str(cost) + " " + str(i) + "|" + (" ").join(map(str, features))
+                f.write(line+"\n")
+        f.close()
 
 def multiVowpalFormat(costVector, trainingLabels, trainingFeatures, datFile):
 
@@ -100,70 +263,6 @@ def training_features(inputSentences):
             closedIQR = float(np.subtract(*np.percentile(closedCostVectorRem, [75, 25])))
             openMedian = float(np.median(openCostVectorRem))
             closedMedian = float(np.median(closedCostVectorRem))
-            openGap = sentence['openCostArr'][1]-sentence['meanAbsError']
-            print "Open gap is",openGap
-            closedGap = sentence['closedCostArr'][1]-sentence['closedMeanAbsError']
-            print "Closed gap is",closedGap
-            maxClosedErr = sentence['closedCostArr'][len(sentence['closedCostArr'])-1]
-            print "maxClosedErr is",maxClosedErr
-            closedRange = np.ptp(sentence['closedCostArr'])
-            print "Closed range is",closedRange
-
-            ybins = [0,0.25,0.5,0.75,1]
-
-            squeezeClosedArray = np.digitize(sentence['closedCostArr'], ybins, right=False)
-
-            factor = squeezeClosedArray.tolist().count(1)
-            print "Factor is",factor
-
-            print "Squeezed closed array is ",squeezeClosedArray
-
-            # open_cost_mat = np.array([sentence['meanAbsError'],0.0,0.0,0.0],dtype=float)
-            # open_cost_mat_train = np.vstack([open_cost_mat_train,sentence['meanAbsError']])
-            open_cost_mat_train = np.append(open_cost_mat_train,sentence['meanAbsError'])
-            # open_cost_mat_1 = np.array([sentence['costSensitiveOpenError1'],0.0,0.0,0.0],dtype=float)
-            # print [value for value in sentence["openCostArr"]]
-
-            open_cost_mat_train_1 = np.append(open_cost_mat_train_1,sentence['meanAbsError']/float(openIQR*(len(openCostVectorRem)+1)))
-            # # open_cost_mat_2 = np.array([sentence['costSensitiveOpenError2'],0.0,0.0,0.0],dtype=float)
-            open_cost_mat_train_2 = np.append(open_cost_mat_train_2,sentence['meanAbsError']/float(openMedian*(len(openCostVectorRem)+1)))
-            # # closed_cost_mat = np.array([sentence['closedMeanAbsError'],0.0,0.0,0.0],dtype=float)
-            closed_cost_mat_train = np.append(closed_cost_mat_train,sentence['closedMeanAbsError'])
-            # # closed_cost_mat_1 = np.array([sentence['costSensitiveClosedError1'],0.0,0.0,0.0],dtype=float)
-            closed_cost_mat_train_1 = np.append(closed_cost_mat_train_1,sentence['closedMeanAbsError']/float(closedIQR*(len(openCostVectorRem)+1)))
-            # # closed_cost_mat_2 = np.array([sentence['costSensitiveClosedError2'],0.0,0.0,0.0],dtype=float)
-            closed_cost_mat_train_2 = np.append(closed_cost_mat_train_2,sentence['closedMeanAbsError']/float(closedMedian*(len(openCostVectorRem)+1)))
-
-            # calculate the proportional values of samples
-            # p = 1. * np.arange(len(sentence['openCostArr'])) / (len(sentence['openCostArr']) - 1)
-            # print "array is ",sentence['openCostArr']
-            # print "p is ",p
-
-            squeezeClosedArray2 = [val/maxClosedErr for val in sentence['closedCostArr']]
-            # print "array is ",sentence['openCostArr']
-            print "p2 is ",squeezeClosedArray2
-            # TODO this could be a hyperparam
-            print "Sum is",sum(float(i) < 0.000000000000001 for i in squeezeClosedArray2)
-
-            closedGapPercent = closedGap/maxClosedErr
-            closedGapPercent2 = closedGap/closedRange
-            print "closedGapPercent is ",closedGapPercent
-            # TODO - these are the same
-            print "closedGapPercent2 is",closedGapPercent2
-            #
-            # # plot the sort ed data:
-            # fig = plt.figure()
-            # ax1 = fig.add_subplot(121)
-            # ax1.plot(p, sentence['openCostArr'])
-            # ax1.set_xlabel('$p$')
-            # ax1.set_ylabel('$x$')
-            #
-            # ax2 = fig.add_subplot(122)
-            # ax2.plot(sentence['openCostArr'], p)
-            # ax2.set_xlabel('$x$')
-            # ax2.set_ylabel('$p$')
-            # fig.show()
-            # _ = raw_input("Press [enter] to continue.")
 
     # print "These are the clean words in the training sentences: ", train_wordlist
     # print "These are the labels in the training sentences: ", train_labels
@@ -233,13 +332,13 @@ if __name__ == "__main__":
     open_cost_mat_train_2 = np.array([])
     closed_cost_mat_train_2 = np.array([])
 
-    # cost_matrices = {}
-    #
-    # for x in range(1,5):
-    #     cost_matrices["open_cost_mat_train_{0}".format(x)]=np.array([])
-    #     cost_matrices["closed_cost_mat_train_{0}".format(x)]=np.array([])
-    #
-    # print cost_matrices
+    cost_matrices = {}
+
+    for x in range(1,4):
+        cost_matrices["open_cost_{0}".format(x)]=[]
+        cost_matrices["closed_cost_{0}".format(x)]=[]
+
+    print cost_matrices
 
 
 
@@ -254,22 +353,9 @@ if __name__ == "__main__":
     # This both sorts out the features and the training labels
     train_data_features = training_features(pattern2regions)
 
-
-
-    # open_cost_mat_train = costMatrix(pattern2regions)
-    # closed_cost_mat_train = costMatrix(pattern2regions)
-    # cost_mat_test = costMatrix(finalTestSentences)
+    genCostMatrices(pattern2regions,cost_matrices)
 
     print len(train_data_features), "sets of training features"
-
-    # print train_data_features[:10]
-
-    print "This is the open cost matrix",open_cost_mat_train[:10]
-    print "This is the closed cost matrix",closed_cost_mat_train[:10]
-    print "This is the open cost matrix 1",open_cost_mat_train_1[:10]
-    print "This is the closed cost matrix 1",closed_cost_mat_train_2[:10]
-    print "This is the open cost matrix 2",open_cost_mat_train_2[:10]
-    print "This is the closed cost matrix 2",closed_cost_mat_train_2[:10]
 
     #
     trainingLabels = len(train_data_features)
@@ -327,35 +413,21 @@ if __name__ == "__main__":
 
     print len(test_data_features), "sets of test features"
 
-    # print test_data_features
-
-    #
-    #
-    # print "Fitting the open multinomial logistic regression model without MAPE threshold...\n"
-    # open_multi_logit = multi_logit.fit(train_data_features, train_property_labels)
-    # print "Fitting the open multinomial logistic regression model w/ MAPE threshold...\n"
-    # open_threshold_multi_logit = multi_logit_threshold.fit(train_data_features, train_property_labels_threshold)
-    # print "Fitting the closed multinomial logistic regression model without MAPE threshold...\n"
-    # closed_multi_logit = closed_multi_logit.fit(train_data_features, closed_train_property_labels)
-    # print "Fitting the closed multinomial logistic regression model with MAPE threshold...\n"
-    # closed_threshold_multi_logit = closed_multi_logit_threshold.fit(train_data_features,
-    #                                                                 closed_train_property_labels_threshold)
-    #
-    # print "Predicting open multinomial test labels w/ threshold...\n"
-    # y_multi_logit_result_open_threshold = np.array(open_threshold_multi_logit.predict(test_data_features))
-    # print "Predicting closed multinomial test labels w/ threshold...\n"
-    # y_multi_logit_result_closed_threshold = np.array(closed_threshold_multi_logit.predict(test_data_features))
-    # print "Predicting open multinomial test labels w/ threshold...\n"
-    # y_multi_logit_result_open_threshold = np.array(open_threshold_multi_logit.predict(test_data_features))
-    # print "Predicting closed multinomial test labels w/ threshold...\n"
-    # y_multi_logit_result_closed_threshold = np.array(closed_threshold_multi_logit.predict(test_data_features))
-
-
     '''
     Cost sensitive classification
     '''
 
     # TODO - make code modular
+    paths = {}
+
+    def generateDatPaths(model):
+        paths[model]=os.path.join(sys.argv[4]+model+".dat")
+
+    for key in cost_matrices.keys():
+        generateDatPaths(key)
+
+    print paths
+
 
     open_cost_category_path = os.path.join(sys.argv[4] +'/openCostClassifier.dat')
     closed_cost_category_path = os.path.join(sys.argv[4] +'/closedCostClassifier.dat')
@@ -373,144 +445,74 @@ if __name__ == "__main__":
 
     closedle.fit(closed_train_property_labels)
     closed_train_property_labels = closedle.transform(closed_train_property_labels)
-    #
-    #
-    # print "Writing files to vowpal wabbit format\n"
-    # csoaa_open = multiVowpalFormat(open_cost_mat_train,train_property_labels,train_data_features,open_cost_category_path)
-    # csoaa_closed = multiVowpalFormat(closed_cost_mat_train,closed_train_property_labels,train_data_features,closed_cost_category_path)
-    # csoaa_open_1 = multiVowpalFormat(open_cost_mat_train_1,train_property_labels,train_data_features,open_cost_category_path_1)
-    # csoaa_closed_1 = multiVowpalFormat(closed_cost_mat_train_1,closed_train_property_labels,train_data_features,closed_cost_category_path_1)
-    # csoaa_open_2 = multiVowpalFormat(open_cost_mat_train_2,train_property_labels,train_data_features,open_cost_category_path_2)
-    # csoaa_closed_2 = multiVowpalFormat(closed_cost_mat_train_2,closed_train_property_labels,train_data_features,closed_cost_category_path_2)
 
 
-    # print "Starting cost sensitive predictions using batch script\n"
-    # # os.system('../../vowpal.sh')
-    # vowpal = subprocess.Popen('../../vowpal.sh',shell=True, stdout=subprocess.PIPE)
-    # vowpal.communicate()
-    # print vowpal.returncode
-    # #
-    # # os.chdir(os.getcwd())
-    # print "Ending predictions"
+    # generateDatFiles(cost_matrices, train_property_labels, closed_train_property_labels,train_data_features, paths)
 
-    # y_csoaa_open = np.loadtxt("../../data/output/cost/csoaa.predict",dtype=int)
-    # y_csoaa_open = [i[0] for i in y_csoaa_open]
-    # y_csoaa_open = openle.inverse_transform(y_csoaa_open)
+    train_commands = {}
+    predict_commands = {}
+
+    def genVWCommands(model):
+        if str(model).startswith("open"):
+            train_commands[model]=("vw --csoaa 24 " + os.path.join(sys.argv[4]+model+".dat") +" -f "+os.path.join(sys.argv[4])+"csoaa.model")
+        else:
+            train_commands[model]=("vw --csoaa 16 " + os.path.join(sys.argv[4]+model+".dat") +" -f "+os.path.join(sys.argv[4])+"csoaa.model")
+        predict_commands[model]=("vw -t -i "+os.path.join(sys.argv[4])+"csoaa.model " + os.path.join(sys.argv[4]+model+".dat")+" -p "+os.path.join(sys.argv[4])+model+ ".predict")
+
+    for key in cost_matrices.keys():
+        genVWCommands(key)
+
+    # print train_commands
+    # print predict_commands
     #
-    # y_csoaa_closed = np.loadtxt("../../data/output/cost/csoaa_closed.predict",dtype=int)
-    # y_csoaa_closed = [i[0] for i in y_csoaa_closed]
-    # y_csoaa_closed = closedle.inverse_transform(y_csoaa_closed)
+    # for (model,trainCommand), (model,predictCommand) in zip(train_commands.items(), predict_commands.items()):
+    #     print "Model is",model
+    #     subprocess.call(trainCommand.split(' '))
+    #     print "Finished Training: ", model
+    #     subprocess.call(predictCommand.split(' '))
+    #     print "Finished Predicting: ",model
+
+    cost_predictions = {}
+
+    for model in cost_matrices.keys():
+        print "Model is ",model
+        cost_predictions[model]=np.loadtxt(os.path.join(sys.argv[4]+model+".predict"))
+        cost_predictions[model] = map(int,[i[0] for i in cost_predictions[model]])
+        print "Prediction is ",cost_predictions[model]
+        if str(model).startswith("open"):
+            print "Array is",model
+            cost_predictions[model]=map(str,openle.inverse_transform(cost_predictions[model]))
+        else:
+            print "Array is",model
+            cost_predictions[model]=map(str,closedle.inverse_transform(cost_predictions[model]))
+
+
+    # print cost_predictions
+
     #
-    # y_csoaa_open_1 = np.loadtxt("../../data/output/cost/csoaa_1.predict",dtype=int)
-    # y_csoaa_open_1 = [i[0] for i in y_csoaa_open_1]
-    # y_csoaa_open_1 = openle.inverse_transform(y_csoaa_open_1)
-    #
-    # y_csoaa_closed_1 = np.loadtxt("../../data/output/cost/csoaa_closed_1.predict",dtype=int)
-    # y_csoaa_closed_1 = [i[0] for i in y_csoaa_closed_1]
-    # y_csoaa_closed_1 = closedle.inverse_transform(y_csoaa_closed_1)
-    #
-    # y_csoaa_open_2 = np.loadtxt("../../data/output/cost/csoaa_2.predict",dtype=int)
-    # y_csoaa_open_2 = [i[0] for i in y_csoaa_open_2]
-    # y_csoaa_open_2 = openle.inverse_transform(y_csoaa_open_2)
-    #
-    # y_csoaa_closed_2 = np.loadtxt("../../data/output/cost/csoaa_closed_2.predict",dtype=int)
-    # y_csoaa_closed_2 = [i[0] for i in y_csoaa_closed_2]
-    # y_csoaa_closed_2 = closedle.inverse_transform(y_csoaa_closed_2)
-    #
-    # # Load in the test data
-    # test = pd.DataFrame(finalTestSentences)
-    # threshold = test['threshold'][0]
-    #
-    # # These are the ground truths
-    # y_multi_true = np.array(test['property'])
-    # y_true_claim = np.array(test['claim'])
-    # #
-    # # # prob_prediction = np.array(open_multi_logit.predict_proba(test_data_features))
-    # # #
-    # # # prob_prediction_threshold = np.array(open_threshold_multi_logit.predict_proba(test_data_features))
-    # # #
-    # # # closed_prob_prediction = np.array(closed_multi_logit.predict_proba(test_data_features))
-    # # #
-    # # # closed_prob_prediction_threshold = np.array(closed_threshold_multi_logit.predict_proba(test_data_features))
-    # #
-    # # # print "Predicting open multinomial test labels with/without MAPE threshold using probability based predictor...\n"
-    # # #
-    # # # y_multi_logit_result_open_prob_binary,y_multi_logit_result_open_prob_binaryFixed = probabilityThreshold(multi_logit,prob_prediction,len(set(train_property_labels)), y_multi_true,probThreshold)
-    # # #
-    # # # y_multi_logit_result_open_prob_binary_threshold,y_multi_logit_result_open_prob_binary_thresholdFixed = probabilityThreshold(multi_logit_threshold,prob_prediction_threshold,len(set(train_property_labels_threshold)), y_multi_true,probThreshold)
-    # # #
-    # # # print "Predicting closed multinomial test labels with/without MAPE threshold using probability based predictor...\n"
-    # # # y_multi_logit_result_closed_prob_binary, y_multi_logit_result_closed_prob_binaryFixed = probabilityThreshold(closed_multi_logit,closed_prob_prediction,len(set(closed_train_property_labels)),y_multi_true,probThreshold)
-    # # #
-    # # # y_multi_logit_result_closed_prob_binary_threshold,y_multi_logit_result_closed_prob_binary_thresholdFixed = probabilityThreshold(closed_multi_logit_threshold,closed_prob_prediction_threshold,len(set(closed_train_property_labels_threshold)),y_multi_true,probThreshold)
-    # #
-    # # y_multi_logit_result_open_threshold_binary = []
-    # # y_multi_logit_result_closed_threshold_binary = []
-    # #
-    # y_open_pred_test_cslr_binary = []
-    # y_closed_pred_test_cslr_binary = []
-    # y_open_pred_test_cslr_binary_1 = []
-    # y_closed_pred_test_cslr_binary_1 = []
-    # y_open_pred_test_cslr_binary_2 = []
-    # y_closed_pred_test_cslr_binary_2 = []
-    # #
-    # #
-    # # # This is Andreas model for distant supervision
-    # # y_andreas_mape = test['mape_label']
-    # #
-    # # y_distant_sv_property_openThreshold = test['predictedPropertyOpenThreshold']
-    # # y_distant_sv_property_closedThreshold = test['predictedPropertyClosedThreshold']
-    # #
-    # # y_openThreshold_distant_sv_to_binary = []
-    # # y_closedThreshold_distant_sv_to_binary = []
-    # #
-    # # positive_result = np.ones(len(finalTestSentences))
-    # # y_pospred = positive_result
-    # #
-    # catLabels = [
-    #              # y_distant_sv_property_openThreshold,
-    #              # y_distant_sv_property_closedThreshold,
-    #              # y_multi_logit_result_open_threshold,
-    #              # y_multi_logit_result_closed_threshold,
-    #             y_csoaa_open,
-    #             y_csoaa_closed,
-    #             y_csoaa_open_1,
-    #             y_csoaa_closed_1,
-    #             y_csoaa_open_1,
-    #             y_csoaa_closed_1
-    #
-    # ]
-    # #
-    # binaryLabels = [
-    #     # y_openThreshold_distant_sv_to_binary,
-    #     # y_closedThreshold_distant_sv_to_binary,
-    #     # y_multi_logit_result_open_threshold_binary,
-    #     # y_multi_logit_result_closed_threshold_binary,
-    #     y_open_pred_test_cslr_binary,
-    #     y_closed_pred_test_cslr_binary,
-    #     y_open_pred_test_cslr_binary_1,
-    #     y_closed_pred_test_cslr_binary_1,
-    #     y_open_pred_test_cslr_binary_2,
-    #     y_closed_pred_test_cslr_binary_2
-    # ]
-    # #
-    # trueLabels = []
-    # trueLabels.extend(repeat(y_multi_true, len(binaryLabels)))
-    # #
-    # #
-    # # Convert the categorical predictions to binary based on if matching property
-    # def binaryConversion(trueLabel, evalLabel, binaryLabel):
-    #     for true, eval in zip(trueLabel, evalLabel):
-    #         # print true,eval, binary
-    #         if eval == true:
-    #             binaryLabel.append(1)
-    #         else:
-    #             binaryLabel.append(0)
-    # #
-    # #
-    # #
-    # for trueLabels, predictionLabels, emptyArray in zip(trueLabels, catLabels, binaryLabels):
-    #     binaryConversion(trueLabels, predictionLabels, emptyArray)
+    # Load in the test data
+    test = pd.DataFrame(finalTestSentences)
+    threshold = test['threshold'][0]
+
+    # These are the ground truths
+
+
+
+    y_multi_true = np.array(test['property'])
+    y_true_claim = np.array(test['claim'])
+
+    binary_cslr_predictions = {}
+
+    for key,predictions in cost_predictions.iteritems():
+        binary_cslr_predictions[key]=[]
+        for predict,true in zip(predictions,y_multi_true):
+            if predict==true:
+                binary_cslr_predictions[key].append(1)
+            else:
+                binary_cslr_predictions[key].append(0)
+
+    print binary_cslr_predictions
+
     # #
     # # output = pd.DataFrame(data=dict(parsed_sentence=test['parsedSentence'],
     # #                                 features=clean_test_sentences,
