@@ -131,87 +131,24 @@ def genCostMatrices(inputSentences, costMatrix):
                     if str(key).endswith("3"):
                         value.append(closedError/float(closedMedian*(len(closedCostVectorRem)+1)))
     for key, value in costMatrix.iteritems():
-        print key," array is ", value,"\n"
-
-
-
-def genTrainInstances(aRow):
-    userid = str(aRow['userid'])
-    urlid = str(aRow['urlid'])
-    y_row = str(int(float(aRow['rating']))  )
-    rowtag = userid+'_'+urlid
-    rowText = (y_row + " 1.0  " + rowtag + "|user " + userid +" |item " +urlid)
-    return rowText
-
-def genTestInstances(aRow):
-    y_row = str(0)
-    userid = str(aRow['userid'])
-    urlid = str(aRow['urlid'])
-    rowtag = userid+'_'+urlid
-    rowText = (y_row + " 1.0  " + rowtag + "|user " + userid +" |item " +urlid)
-    return rowText
-
-def readPredictFile():
-    y_pred = []
-    with open('../../data/output/cost/csoaa.predict', 'rb') as csvfile:
-        predictions = csv.reader(csvfile, delimiter=' ', quotechar='|')
-        for row in predictions:
-            pred = parseStr(row[0])
-            y_pred.append(pred)
-    return np.asarray(y_pred)
-
-def predict_model():
-    global environmentDict, predictCommand, df_test
-
-    print "Building Test Instances: ", asctime()
-    df_test['TestInstances'] = df_test.apply(genTestInstances, axis=1)
-    print "Finished Generating Test Instances: ", asctime()
-
-    print "Writing Test Instances: ", asctime()
-    testInstances = list(df_test['TestInstances'].values)
-    f = open('test_vw.data','w')
-    f.writelines(["%s\n" % row  for row in testInstances])
-    f.close()
-    print "Finished Writing Test Instances: ", asctime()
-
-    subprocess.call(predictCommand, env=environmentDict)
-
-    df_test['y_pred'] = readPredictFile()
-    return
-
-def train_model():
-    global df_train, trainCommand, environmentDict
-
-    print "Generating VW Training Instances: ", asctime()
-    df_train['TrainInstances'] = df_train.apply(genTrainInstances, axis=1)
-    print "Finished Generating Train Instances: ", asctime()
-
-    print "Writing Train Instances To File: ", asctime()
-    trainInstances = list(df_train['TrainInstances'].values)
-    f = open('train_vw.data','w')
-    f.writelines(["%s\n" % row  for row in trainInstances])
-    f.close()
-    print "Finished Writing Train Instances: ", asctime()
-
-    subprocess.call(trainCommand, env=environmentDict)
-    print "Finished Training: ", asctime()
-    return
+        print key," array is ", value[0],"\n"
 
 def generateDatFiles(costDict, trainingLabels, closedTrainingLabels, trainingFeatures, pathDict):
 
     # TODO - make sure this opens a fresh file all the time and replaces
 
     print "There are this many unique labels",len(set(trainingLabels))
+    print "There are this many closed unique labels",len(set(closedTrainingLabels))
+
+    print "Generating VW files...\n"
 
     for (model,filepath), (model,costmatrix) in zip(pathDict.items(), costDict.items()):
         f = open(filepath, 'w')
         for i, (label,closedLabel, cost,features) in enumerate(zip(trainingLabels,closedTrainingLabels,costmatrix,trainingFeatures)):
             if str(model).startswith("open"):
-                print "There are this many unique labels",len(set(trainingLabels))
                 line = str(label) + ":" + str(cost) + " " + str(i) + "|" + (" ").join(map(str, features))
                 f.write(line+"\n")
             else:
-                print "There are this many unique labels",len(set(closedTrainingLabels))
                 line = str(closedLabel) + ":" + str(cost) + " " + str(i) + "|" + (" ").join(map(str, features))
                 f.write(line+"\n")
         f.close()
@@ -237,8 +174,6 @@ def training_features(inputSentences):
     global closed_cost_mat_train_1
     global open_cost_mat_train_2
     global closed_cost_mat_train_2
-    # [:15000]
-    # plt.ion()
 
     for i, sentence in enumerate(inputSentences[:15000]):
         # Dont train if the sentence contains a random region we don't care about
@@ -251,19 +186,6 @@ def training_features(inputSentences):
             # Closed evaluation only include certain training sentences
             closed_train_property_labels.append(sentence['predictedPropertyClosed'])
             closed_train_property_labels_threshold.append(sentence['predictedPropertyClosedThreshold'])
-            # cost_mat[C_FP,C_FN,C_TP,C_TN]
-            # TODO - test different versions of this
-            # Now analyse the distribution of the costs. One method is to remove the value I chose and look at the median, IQR and mode of the other values.
-            openCostVectorRem = np.sort([value for i,value in enumerate(sentence['openCostArr']) if value is not sentence['meanAbsError']])
-            closedCostVectorRem = np.sort([value for i,value in enumerate(sentence['closedCostArr']) if value is not sentence['closedMeanAbsError']])
-            # print "Sentence is ",sentence['sentence']
-            # print "Error is",sentence['meanAbsError']
-            # print "Remaining array is",openCostVectorRem
-            openIQR = float(np.subtract(*np.percentile(openCostVectorRem, [75, 25])))
-            closedIQR = float(np.subtract(*np.percentile(closedCostVectorRem, [75, 25])))
-            openMedian = float(np.median(openCostVectorRem))
-            closedMedian = float(np.median(closedCostVectorRem))
-
     # print "These are the clean words in the training sentences: ", train_wordlist
     # print "These are the labels in the training sentences: ", train_labels
     print "Creating the bag of words...\n"
@@ -272,7 +194,6 @@ def training_features(inputSentences):
     train_data_features = train_data_features.astype(np.float)
 
     return train_data_features
-
 
 def test_features(testSentences):
     global vectorizer
@@ -324,23 +245,11 @@ if __name__ == "__main__":
     closed_train_property_labels_threshold = []
     test_property_labels = []
 
-    # open_cost_mat_train = np.array([],dtype=float).reshape((0,4))
-    open_cost_mat_train = np.array([])
-    closed_cost_mat_train = np.array([])
-    open_cost_mat_train_1 = np.array([])
-    closed_cost_mat_train_1 = np.array([])
-    open_cost_mat_train_2 = np.array([])
-    closed_cost_mat_train_2 = np.array([])
-
     cost_matrices = {}
 
     for x in range(1,4):
         cost_matrices["open_cost_{0}".format(x)]=[]
         cost_matrices["closed_cost_{0}".format(x)]=[]
-
-    print cost_matrices
-
-
 
     vectorizer = CountVectorizer(analyzer="word", \
                                  tokenizer=None, \
@@ -417,7 +326,6 @@ if __name__ == "__main__":
     Cost sensitive classification
     '''
 
-    # TODO - make code modular
     paths = {}
 
     def generateDatPaths(model):
@@ -425,17 +333,6 @@ if __name__ == "__main__":
 
     for key in cost_matrices.keys():
         generateDatPaths(key)
-
-    print paths
-
-
-    open_cost_category_path = os.path.join(sys.argv[4] +'/openCostClassifier.dat')
-    closed_cost_category_path = os.path.join(sys.argv[4] +'/closedCostClassifier.dat')
-    open_cost_category_path_1 = os.path.join(sys.argv[4] +'/openCostClassifier_1.dat')
-    closed_cost_category_path_1 = os.path.join(sys.argv[4] +'/closedCostClassifier_1.dat')
-    open_cost_category_path_2 = os.path.join(sys.argv[4] +'/openCostClassifier_2.dat')
-    closed_cost_category_path_2 = os.path.join(sys.argv[4] +'/closedCostClassifier_2.dat')
-
 
     openle = preprocessing.LabelEncoder()
     closedle = preprocessing.LabelEncoder()
@@ -447,30 +344,32 @@ if __name__ == "__main__":
     closed_train_property_labels = closedle.transform(closed_train_property_labels)
 
 
-    # generateDatFiles(cost_matrices, train_property_labels, closed_train_property_labels,train_data_features, paths)
+    generateDatFiles(cost_matrices, train_property_labels, closed_train_property_labels,train_data_features, paths)
 
     train_commands = {}
     predict_commands = {}
 
     def genVWCommands(model):
         if str(model).startswith("open"):
-            train_commands[model]=("vw --csoaa 24 " + os.path.join(sys.argv[4]+model+".dat") +" -f "+os.path.join(sys.argv[4])+"csoaa.model")
+            train_commands[model]=("vw --csoaa 24 " + os.path.join(sys.argv[4]+model+".dat") +" -f "+os.path.join(sys.argv[4])+model+".model")
         else:
-            train_commands[model]=("vw --csoaa 16 " + os.path.join(sys.argv[4]+model+".dat") +" -f "+os.path.join(sys.argv[4])+"csoaa.model")
-        predict_commands[model]=("vw -t -i "+os.path.join(sys.argv[4])+"csoaa.model " + os.path.join(sys.argv[4]+model+".dat")+" -p "+os.path.join(sys.argv[4])+model+ ".predict")
+            train_commands[model]=("vw --csoaa 16 " + os.path.join(sys.argv[4]+model+".dat") +" -f "+os.path.join(sys.argv[4])+model+".model")
+        predict_commands[model]=("vw -t -i "+os.path.join(sys.argv[4])+model+".model " + os.path.join(sys.argv[4]+model+".dat")+" -p "+os.path.join(sys.argv[4])+model+ ".predict")
 
     for key in cost_matrices.keys():
         genVWCommands(key)
 
-    # print train_commands
-    # print predict_commands
-    #
-    # for (model,trainCommand), (model,predictCommand) in zip(train_commands.items(), predict_commands.items()):
-    #     print "Model is",model
-    #     subprocess.call(trainCommand.split(' '))
-    #     print "Finished Training: ", model
-    #     subprocess.call(predictCommand.split(' '))
-    #     print "Finished Predicting: ",model
+    print train_commands
+    print predict_commands
+
+    for (model,trainCommand), (model,predictCommand) in zip(train_commands.items(), predict_commands.items()):
+        print "Model is",model
+        print "Training command is ",trainCommand
+        print "predictCommand command is ",trainCommand
+        subprocess.call(trainCommand.split(' '))
+        print "Finished Training: ", model
+        subprocess.call(predictCommand.split(' '))
+        print "Finished Predicting: ",model
 
     cost_predictions = {}
 
@@ -495,8 +394,6 @@ if __name__ == "__main__":
     threshold = test['threshold'][0]
 
     # These are the ground truths
-
-
 
     y_multi_true = np.array(test['property'])
     y_true_claim = np.array(test['claim'])
@@ -562,8 +459,8 @@ if __name__ == "__main__":
     # #                                 ))
     # #
     # # # print str(os.path.splitext(sys.argv[2])[0]).split("/")
-    # # # TODO This was an issue on command line - change to [2] if on command line and 8 if not
-    # testSet = str(os.path.splitext(sys.argv[2])[0]).split("/")[8]
+    # TODO This was an issue on command line - change to [2] if on command line and 8 if not
+    testSet = str(os.path.splitext(sys.argv[2])[0]).split("/")[8]
     # #
     # # resultPath = os.path.join(sys.argv[4] + testSet + '_' + str(threshold) + '_' + str(probThreshold)+ '_costregressionResult.csv')
     # #
@@ -616,134 +513,85 @@ if __name__ == "__main__":
     # #
     # # # TODO - need to create a per property chart
     # #
-    # # Now we write our precision F1 etc to an Excel file
-    # summaryDF = pd.DataFrame(columns=('precision', 'recall', 'f1', 'accuracy', 'evaluation set', 'threshold'))
-    # # # 'probThreshold'
-    # #
-    # def evaluation(trueLabels, evalLabels, test_set, threshold):
-    #     # ,probThreshold
-    #     global summaryDF
-    #     global trainingLabels
-    #     global positiveOpenTrainingLabels
-    #     global negativeOpenTrainingLabels
-    #     global positiveClosedTrainingLabels
-    #     global negativeClosedTrainingLabels
-    #     global openTrainingClasses
-    #     global openTrainingClassesThreshold
-    #     global closedTrainingClasses
-    #     global closedTrainingClassesThreshold
+    # Now we write our precision F1 etc to an Excel file
+    summaryDF = pd.DataFrame(columns=('precision', 'recall', 'f1', 'accuracy', 'evaluation set', 'threshold'))
+    # # 'probThreshold'
     #
-    #     precision = precision_score(trueLabels, evalLabels)
-    #     recall = recall_score(trueLabels, evalLabels)
-    #     f1 = f1_score(trueLabels, evalLabels)
-    #     accuracy = accuracy_score(trueLabels, evalLabels)
+    def evaluation(trueLabels, evalLabels, test_set, threshold):
+        # ,probThreshold
+        global summaryDF
+        global trainingLabels
+        global positiveOpenTrainingLabels
+        global negativeOpenTrainingLabels
+        global positiveClosedTrainingLabels
+        global negativeClosedTrainingLabels
+        global openTrainingClasses
+        global openTrainingClassesThreshold
+        global closedTrainingClasses
+        global closedTrainingClassesThreshold
+
+        precision = precision_score(trueLabels, evalLabels)
+        recall = recall_score(trueLabels, evalLabels)
+        f1 = f1_score(trueLabels, evalLabels)
+        accuracy = accuracy_score(trueLabels, evalLabels)
+
+        data = {'precision': [precision],
+                'recall': [recall],
+                'f1': [f1],
+                'accuracy': [accuracy],
+                'evaluation set': [test_set],
+                'threshold': [threshold],
+                # 'probThreshold': [probThreshold],
+                'trainingLabels':[trainingLabels],
+                'positiveOpenLabels':[positiveOpenTrainingLabels],
+                'negativeOpenLabels':[negativeOpenTrainingLabels],
+                'positiveClosedLabels':[positiveClosedTrainingLabels],
+                'negativeClosedLabels':[negativeClosedTrainingLabels],
+                'openTrainingClasses': [openTrainingClasses],
+                'openTrainingClassesThreshold': [openTrainingClassesThreshold],
+                'closedTrainingClasses':[closedTrainingClasses],
+                'closedTrainingClassesThreshold': [closedTrainingClassesThreshold]
+                }
+
+        DF = pd.DataFrame(data)
+
+        summaryDF = pd.concat([summaryDF, DF])
+
+    for model,result in binary_cslr_predictions.iteritems():
+        # TODO - for some reason some unknown claims appear
+        print "True claim is",np.array(y_true_claim)
+        print "Result is",result
+
+        evaluation(y_true_claim, result, testSet, threshold)
+
+    columns = list([
+                    'Cost Sensitive Classification Open',
+                    'Cost Sensitive Classification Closed',
+                    'Cost Sensitive Classification Open 1',
+                    'Cost Sensitive Classification Closed 1',
+                    'Cost Sensitive Classification Open 2',
+                    'Cost Sensitive Classification Closed 2'
+                    ])
+
+    summaryDF.index = columns
+
+    print summaryDF
     #
-    #     data = {'precision': [precision],
-    #             'recall': [recall],
-    #             'f1': [f1],
-    #             'accuracy': [accuracy],
-    #             'evaluation set': [test_set],
-    #             'threshold': [threshold],
-    #             # 'probThreshold': [probThreshold],
-    #             'trainingLabels':[trainingLabels],
-    #             'positiveOpenLabels':[positiveOpenTrainingLabels],
-    #             'negativeOpenLabels':[negativeOpenTrainingLabels],
-    #             'positiveClosedLabels':[positiveClosedTrainingLabels],
-    #             'negativeClosedLabels':[negativeClosedTrainingLabels],
-    #             'openTrainingClasses': [openTrainingClasses],
-    #             'openTrainingClassesThreshold': [openTrainingClassesThreshold],
-    #             'closedTrainingClasses':[closedTrainingClasses],
-    #             'closedTrainingClassesThreshold': [closedTrainingClassesThreshold]
-    #             }
-    #
-    #     DF = pd.DataFrame(data)
-    #
-    #     summaryDF = pd.concat([summaryDF, DF])
-    #
-    #
-    # results = [
-    #            # y_pospred,
-    #            #
-    #            # y_openThreshold_distant_sv_to_binary,
-    #            #
-    #            # y_closedThreshold_distant_sv_to_binary,
-    #
-    #            # y_multi_logit_result_open_threshold_binary,
-    #            #
-    #            # y_multi_logit_result_closed_threshold_binary,
-    #
-    #            # y_multi_logit_result_open_prob_binary,
-    #            # y_multi_logit_result_open_prob_binary_threshold,
-    #            # y_multi_logit_result_closed_prob_binary,
-    #            # y_multi_logit_result_closed_prob_binary_threshold,
-    #            #
-    #            # y_multi_logit_result_open_prob_binaryFixed,
-    #            # y_multi_logit_result_open_prob_binary_thresholdFixed,
-    #            # y_multi_logit_result_closed_prob_binaryFixed,
-    #            # y_multi_logit_result_closed_prob_binary_thresholdFixed
-    #             y_open_pred_test_cslr_binary,
-    #             y_closed_pred_test_cslr_binary,
-    #             y_open_pred_test_cslr_binary_1,
-    #             y_closed_pred_test_cslr_binary_1,
-    #             y_open_pred_test_cslr_binary_2,
-    #             y_closed_pred_test_cslr_binary_2
-    #
-    #            ]
-    # #
-    #
-    # for result in results:
-    #     evaluation(y_true_claim, result, testSet, threshold)
-    #     # ,probThreshold
-    #
-    # columns = list([
-    #                 # 'Previous_Model',
-    #                 #
-    #                 #
-    #                 # 'Open_Property_MAPE_Threshold_Distant_Supervision_Model',
-    #                 #
-    #                 # 'Closed_Property_MAPE_Threshold_Distant_Supervision_Model',
-    #
-    #                 # 'Open_Property_Bag_of_Words_Multinomial_Logistic_Regression_w_Binary_Evaluation_&_MAPE_Threshold',
-    #                 #
-    #                 # 'Closed_Property_Bag_of_Words_Multinomial_Logistic_Regression_w_Binary_Evaluation_&_MAPE_Threshold',
-    #
-    #                 # 'Open_Property_Probability_Prediction',
-    #                 # 'Open_Property_Probability_Prediction_MAPEThreshold',
-    #                 # 'Closed_Property_Probability_Prediction',
-    #                 # 'Closed_Property_Probability_Prediction_MAPEThreshold',
-    #                 #
-    #                 # 'Open_Property_Probability_PredictionFixed',
-    #                 # 'Open_Property_Probability_Prediction_MAPEThresholdFixed',
-    #                 # 'Closed_Property_Probability_PredictionFixed',
-    #                 # 'Closed_Property_Probability_Prediction_MAPEThresholdFixed'
-    #                 'Cost Sensitive Classification Open',
-    #                 'Cost Sensitive Classification Closed',
-    #                 'Cost Sensitive Classification Open 1',
-    #                 'Cost Sensitive Classification Closed 1',
-    #                 'Cost Sensitive Classification Open 2',
-    #                 'Cost Sensitive Classification Closed 2'
-    #                 ])
-    #
-    # # summaryDF.set_index(['A','B'])
-    # summaryDF.index = columns
-    #
-    # print summaryDF
-    #
-    # try:
-    #     if os.stat(sys.argv[5]).st_size > 0:
-    #         # df_csv = pd.read_csv(sys.argv[5],encoding='utf-8',engine='python')
-    #         # summaryDF = pd.concat([df_csv,summaryDF],axis=1,ignore_index=True)
-    #         with open(sys.argv[5], 'a') as f:
-    #             # Need to empty file contents now
-    #             summaryDF.to_csv(path_or_buf=f, encoding='utf-8', mode='a', header=False)
-    #             f.close()
-    #     else:
-    #         print "empty file"
-    #         with open(sys.argv[5], 'w+') as f:
-    #             summaryDF.to_csv(path_or_buf=f, encoding='utf-8')
-    #             f.close()
-    # except OSError:
-    #     print "No file"
-    #     with open(sys.argv[5], 'w+') as f:
-    #         summaryDF.to_csv(path_or_buf=f, encoding='utf-8')
-    #         f.close()
+    try:
+        if os.stat(sys.argv[5]).st_size > 0:
+            # df_csv = pd.read_csv(sys.argv[5],encoding='utf-8',engine='python')
+            # summaryDF = pd.concat([df_csv,summaryDF],axis=1,ignore_index=True)
+            with open(sys.argv[5], 'a') as f:
+                # Need to empty file contents now
+                summaryDF.to_csv(path_or_buf=f, encoding='utf-8', mode='a', header=False)
+                f.close()
+        else:
+            print "empty file"
+            with open(sys.argv[5], 'w+') as f:
+                summaryDF.to_csv(path_or_buf=f, encoding='utf-8')
+                f.close()
+    except OSError:
+        print "No file"
+        with open(sys.argv[5], 'w+') as f:
+            summaryDF.to_csv(path_or_buf=f, encoding='utf-8')
+            f.close()

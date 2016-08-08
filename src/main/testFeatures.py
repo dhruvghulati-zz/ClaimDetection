@@ -115,7 +115,7 @@ def testSentenceLabels(dict_list):
         temp_properties.append(property.split("/")[3])
         # TODO - Command line issue as I had hard coded the location of these files ../../, in command line remove
     print "Temporary properties are",len(temp_properties)
-    for subdir, dirs, files in os.walk('../../data/labeled_claims'):
+    for subdir, dirs, files in os.walk('data/labeled_claims'):
         # This is causing errors
         for file in files:
             # print os.path.join(subdir, file)
@@ -140,7 +140,7 @@ def testSentenceLabels(dict_list):
                         sentence['mape'] = s.cell(row_index, mape_index).value
                         sentence['claim'] = s.cell(row_index, claim_index).value
                         # TODO - on command line this should change to remove ../..
-                        if filepath=="../../data/labeled_claims/internet_users_percent_population_claims.xlsx" or filepath=="../../data/labeled_claims/population_growth_rate_claims.xlsx":
+                        if filepath=="data/labeled_claims/internet_users_percent_population_claims.xlsx" or filepath=="data/labeled_claims/population_growth_rate_claims.xlsx":
                             # print filepath
                             # print "False"
                             extracted_country = s.cell(row_index, country_index).value
@@ -187,8 +187,7 @@ def testSentenceLabels(dict_list):
                                 if s.cell(row_index,col_index).value in temp_properties:
                                     sentence['property'] = "/location/statistical_region/" + s.cell(row_index,col_index).value
                                         # print "true"
-                        if sentence['parsedSentence']:
-                            dict_list.append(sentence)
+                        dict_list.append(sentence)
 
     # print dict_list
     return dict_list
@@ -273,7 +272,7 @@ if __name__ == "__main__":
 
     # Here we remove blanks and clean up the test set - note we ignore some properties because we are not sure if they contain a claim or not - ?
     for i, dataTriples in enumerate(testLabels):
-        if dataTriples['mape']!={} and dataTriples['parsedSentence']!={} and dataTriples['property']!={} and dataTriples['claim']!="?":
+        if dataTriples['mape']!={} and dataTriples['parsedSentence']!={} and dataTriples['property']!={} and dataTriples['claim']!="?" and dataTriples['claim']!="":
             cleanTestLabels.append(dataTriples)
 
     print "Total clean test labels with no ? claim is", len(cleanTestLabels),"\n"

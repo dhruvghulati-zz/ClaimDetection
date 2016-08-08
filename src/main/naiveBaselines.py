@@ -147,10 +147,10 @@ if __name__ == "__main__":
 
     print len(train_data_features), "sets of training features"
 
-    multi_logit = LogisticRegression(fit_intercept=True, class_weight='auto', multi_class='multinomial',
+    multi_logit = LogisticRegression(fit_intercept=True, class_weight='balanced', multi_class='multinomial',
                                      solver='newton-cg')
 
-    closed_multi_logit = LogisticRegression(fit_intercept=True, class_weight='auto', multi_class='multinomial',
+    closed_multi_logit = LogisticRegression(fit_intercept=True, class_weight='balanced', multi_class='multinomial',
                                             solver='newton-cg')
 
     # Fit the logistic classifiers to the training set, using the bag of words as features
