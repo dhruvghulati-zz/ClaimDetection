@@ -57,23 +57,28 @@ def findMatch(target, country):
     # Remove all values with no value for the property we want e.g. Qatar
     filtered_country = {k: v for k, v in filtered_country.items() if v}
     # print "Filtered country is",filtered_country
-    openCostVector = np.sort([absError(target, v) for k, v in country.items()])
-    closedCostVector = np.sort([absError(target, v) for k, v in filtered_country.items()])
+    openCostVector = sorted([float(absError(target, v)) for k, v in country.items()])
+    closedCostVector = sorted([float(absError(target, v)) for k, v in filtered_country.items()])
     #
     # print "Open Cost array is",openCostVector
     # print "Closed Cost array is",closedCostVector
-    openMatch = min(country, key= lambda x: absError(target, country.get(x)))
-    closedMatch = min(filtered_country, key= lambda x: absError(target, filtered_country.get(x)))
+
+    openCostDict = {k: absError(target, v) for k, v in country.items() if v}
+    # closedCostDict = sorted(closedCostDict.items(), key=operator.itemgetter(1))
+
+    closedCostDict = {k: absError(target, v) for k, v in filtered_country.items() if v}
+    # openCostDict = sorted(openCostDict.items(), key=operator.itemgetter(1))
+
+    # print "Open Cost dict is",closedCostDict
+    # print "Closed Cost dict is",openCostDict
+
+
+    openMatch = min(country, key= lambda x: float(absError(target, country.get(x))))
+    closedMatch = min(filtered_country, key= lambda x: float(absError(target, filtered_country.get(x))))
     # print "Open match is ",openMatch
     # print "Closed match is ",closedMatch
 
-    openCostVectorRem = np.sort([absError(target, v) for k,v in country.items() if k is not openMatch])
-    closedCostVectorRem = np.sort([absError(target, v) for k,v in filtered_country.items() if k is not closedMatch])
-
-    # print "Open Cost array is",openCostVectorRem
-    # print "Closed Cost array is",closedCostVectorRem
-
-    return openMatch, closedMatch,openCostVector,closedCostVector
+    return openMatch, closedMatch,openCostVector,closedCostVector,openCostDict,closedCostDict
 
 def update(sentence):
 
@@ -96,7 +101,7 @@ def update(sentence):
         res = sentence.copy()
         country = property2region2value[c]
         # This is the open matched property
-        matchedProperty, closedMatch, openCostArr, closedCostArr = findMatch(target,country)
+        matchedProperty, closedMatch, openCostArr, closedCostArr,openDict, closedDict = findMatch(target,country)
         # print "This is the openCostArr",openCostArr
         # print "This is the closedCostArr",closedCostArr
         # print "This is matched property: ", matchedProperty
@@ -106,10 +111,11 @@ def update(sentence):
         # print "Open error is",error
 
         res.update({'predictedPropertyClosed': closedMatch, 'closedMeanAbsError': closedError,
-                    'closedCostArr':closedCostArr.tolist()
+                    'closedCostArr':closedCostArr,'closedCostDict':closedDict
+
                     })
         res.update({'predictedPropertyOpen': matchedProperty, 'meanAbsError': error,
-                    'openCostArr':openCostArr.tolist()
+                    'openCostArr':openCostArr,'openCostDict':openDict
                     })
         if error<threshold:
             res.update({'predictedPropertyOpenThreshold': matchedProperty})
@@ -190,6 +196,9 @@ if __name__ == "__main__":
     # The new sentence file with predicted statistical property
 
     outputFile = sys.argv[3]
+
+    # print predictionSentences
+
     with open(sys.argv[3], "wb") as out:
         json.dump(predictionSentences, out,indent=4)
 

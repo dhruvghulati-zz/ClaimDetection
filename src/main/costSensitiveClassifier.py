@@ -1,35 +1,19 @@
 import math
-import numpy as np
-from sklearn import datasets
-from sklearn.cross_validation import train_test_split
-# from vowpalwabbit.sklearn_vw import VWClassifier
 import re
 from nltk.corpus import stopwords  # Import the stop word list
-from numpy.matlib import empty
-import matplotlib.pyplot as plt
 import json
-from time import asctime, time
 import numpy as np
-import inspect
 import pandas as pd
-from sklearn import datasets
 from sklearn import preprocessing
 import subprocess
-import csv
-from sklearn.cross_validation import train_test_split
 import sys
 from sklearn.metrics import precision_score
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import recall_score
 from sklearn.metrics import f1_score
-from sklearn.metrics import precision_recall_fscore_support
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.linear_model import LogisticRegression
 import os
-from itertools import repeat
-
-rng = np.random.RandomState(101)
-parseStr = lambda x: float(x) if '.' in x else int(x)
 
 def sigmoid(x):
   return 1 / (1 + math.exp(-x))
@@ -38,7 +22,6 @@ def sentence_to_words(sentence, remove_stopwords=False):
     letters_only = re.sub('[^a-zA-Z| LOCATION_SLOT | NUMBER_SLOT]', " ", sentence)
     # [x.strip() for x in re.findall('\s*(\w+|\W+)', line)]
     words = letters_only.lower().split()
-
     # In Python, searching a set is much faster than searching a list, so convert the stop words to a set
     if remove_stopwords:
         stops = set(stopwords.words("english"))
@@ -49,54 +32,65 @@ def genCostMatrices(inputSentences, costMatrix):
     for i, sentence in enumerate(inputSentences[:15000]):
         if sentence:
             # Generate all the variables I need
-            error = sentence['meanAbsError']
-            closedError = sentence['closedMeanAbsError']
+            error = float(sentence['meanAbsError'])
+            closedError = float(sentence['closedMeanAbsError'])
+
+            openDict = sentence['openCostDict']
+            closedDict = sentence['closedCostDict']
 
             openCostVectorRem = np.sort([value for i,value in enumerate(sentence['openCostArr']) if value is not sentence['meanAbsError']])
             closedCostVectorRem = np.sort([value for i,value in enumerate(sentence['closedCostArr']) if value is not sentence['closedMeanAbsError']])
-            # print "Sentence is ",sentence['sentence']
-            # print "Error is",sentence['meanAbsError']
-            # print "Remaining array is",openCostVectorRem
+            # print "Closed cost array is",sentence['closedCostArr']
+            # print "Open cost array is",sentence['openCostArr']
+
             openIQR = float(np.subtract(*np.percentile(openCostVectorRem, [75, 25])))
             closedIQR = float(np.subtract(*np.percentile(closedCostVectorRem, [75, 25])))
             openMedian = float(np.median(openCostVectorRem))
             closedMedian = float(np.median(closedCostVectorRem))
-
-            openGap = sentence['openCostArr'][1]-sentence['meanAbsError']
+            openGap = float(sentence['openCostArr'][1]-sentence['meanAbsError'])
             # print "Open gap is",openGap
-            closedGap = sentence['closedCostArr'][1]-sentence['closedMeanAbsError']
+            closedGap = float(sentence['closedCostArr'][1]-sentence['closedMeanAbsError'])
             # print "Closed gap is",closedGap
-            maxClosedErr = sentence['closedCostArr'][len(sentence['closedCostArr'])-1]
-            # print "maxClosedErr is",maxClosedErr
-            closedRange = np.ptp(sentence['closedCostArr'])
+
+            closedRange = float(np.ptp(sentence['closedCostArr']))
             # print "Closed range is",closedRange
 
+            openRange = float(np.ptp(sentence['openCostArr']))
+            # print "Open range is",openRange
+            closedPercentArray = [float(val)/closedRange for val in sentence['closedCostArr']]
+            openPercentArray = [float(val)/openRange for val in sentence['openCostArr']]
+
+            # TODO - this is a hyperparameter
+            closedCompetingEntries = float(sum(float(i) < float(1) for i in sentence['closedCostArr']))
+
+            # print "Closed competing entries are",closedCompetingEntries
+
+            openCompetingEntries = float(sum(float(i) < float(1) for i in sentence['openCostArr']))
+            # print "openCompetingEntries are",openCompetingEntries
+
+            closedGapPercent = float(closedGap/closedRange)
+            # print "closedGapPercent is ",closedGapPercent
+
+            openGapPercent = float(openGap/openRange)
+            # print "openGapPercent is ",openGapPercent
+
+            # TODO - can squeeze to the max value there
             ybins = [0,0.25,0.5,0.75,1]
-
-            squeezeClosedArray = np.digitize(sentence['closedCostArr'], ybins, right=False)
-
-            factor = squeezeClosedArray.tolist().count(1)
-            # print "Factor is",factor
-
+            squeezeClosedArray = np.digitize(closedPercentArray, ybins, right=False)
+            closedFactor = float(squeezeClosedArray.tolist().count(np.amin(squeezeClosedArray)))
             # print "Squeezed closed array is ",squeezeClosedArray
+            # print "closedFactor is",closedFactor
+
+            squeezeOpenArray = np.digitize(openPercentArray, ybins, right=False)
+            openFactor = float(squeezeOpenArray.tolist().count(np.amin(squeezeOpenArray)))
+            # print "Squeezed open array is ",squeezeOpenArray
+            # print "openFactor is",openFactor
 
             # calculate the proportional values of samples
             # p = 1. * np.arange(len(sentence['openCostArr'])) / (len(sentence['openCostArr']) - 1)
             # print "array is ",sentence['openCostArr']
             # print "p is ",p
-
-            squeezeClosedArray2 = [val/maxClosedErr for val in sentence['closedCostArr']]
-            # print "array is ",sentence['openCostArr']
-            # print "p2 is ",squeezeClosedArray2
-            # TODO this could be a hyperparam
-            # print "Sum is",sum(float(i) < 0.000000000000001 for i in squeezeClosedArray2)
-
-            closedGapPercent = closedGap/maxClosedErr
-            closedGapPercent2 = closedGap/closedRange
-            # print "closedGapPercent is ",closedGapPercent
-            # TODO - these are the same
-            # print "closedGapPercent2 is",closedGapPercent2
-            #
+                        #
             # # plot the sort ed data:
             # fig = plt.figure()
             # ax1 = fig.add_subplot(121)
@@ -111,27 +105,121 @@ def genCostMatrices(inputSentences, costMatrix):
             # fig.show()
             # _ = raw_input("Press [enter] to continue.")
 
-
-
-
-            for key, value in costMatrix.iteritems():
+            for key, array in costMatrix.iteritems():
                 # print key, value
-                if str(key).startswith("open"):
-                    if str(key).endswith("1"):
-                        value.append(error)
-                    if str(key).endswith("2"):
-                        value.append(error/float(openIQR*(len(openCostVectorRem)+1)))
-                    if str(key).endswith("3"):
-                        value.append(error/float(openMedian*(len(openCostVectorRem)+1)))
+                if str(key).startswith("single"):
+                    if str(key).split('_')[1]=="open":
+                        if str(key).endswith("1"):
+                            array.append(error)
+                        if str(key).endswith("2"):
+                            array.append(error/float(openIQR*(len(openCostVectorRem)+1)))
+                        if str(key).endswith("3"):
+                            array.append(error/float(openMedian*(len(openCostVectorRem)+1)))
+                        if str(key).endswith("4"):
+                            array.append(error/np.where(openGap
+    >0,openGap, 0e-10))
+                        if str(key).endswith("5"):
+                            array.append(error/np.where(openGapPercent
+    >0,openGapPercent, 0e-10))
+                        if str(key).endswith("6"):
+                            array.append(error*openCompetingEntries)
+                        if str(key).endswith("7"):
+                            array.append(error*openFactor)
+                    else:
+                        if str(key).endswith("1"):
+                            array.append(closedError)
+                        if str(key).endswith("2"):
+                            array.append(closedError/float(closedIQR*(len(closedCostVectorRem)+1)))
+                        if str(key).endswith("3"):
+                            array.append(closedError/float(closedMedian*(len(closedCostVectorRem)+1)))
+                        if str(key).endswith("4"):
+                            array.append(closedError/np.where(closedGap>0,closedGap,0e-10))
+                        if str(key).endswith("5"):
+                            array.append(closedError/np.where(closedGapPercent>0,closedGapPercent,0e-10))
+                        if str(key).endswith("6"):
+                            array.append(closedError*closedCompetingEntries)
+                        if str(key).endswith("7"):
+                            array.append(closedError*closedFactor)
                 else:
-                    if str(key).endswith("1"):
-                        value.append(closedError)
-                    if str(key).endswith("2"):
-                        value.append(closedError/float(closedIQR*(len(closedCostVectorRem)+1)))
-                    if str(key).endswith("3"):
-                        value.append(closedError/float(closedMedian*(len(closedCostVectorRem)+1)))
-    for key, value in costMatrix.iteritems():
-        print key," array is ", value[0],"\n"
+                    if str(key).split('_')[0]=="open":
+                        if str(key).endswith("1"):
+                            dict = {}
+                            for key,value in openDict.iteritems():
+                                dict[key] = value/openRange
+                            array.append(dict)
+                            # array.append(openDict)
+                        if str(key).endswith("2"):
+                            dict = {}
+                            for key,value in openDict.iteritems():
+                                dict[key] = value/float(openIQR*(len(openCostVectorRem)+1))
+                            array.append(dict)
+                        if str(key).endswith("3"):
+                            dict = {}
+                            for key,value in openDict.iteritems():
+                                dict[key] = value/float(openMedian*(len(openCostVectorRem)+1))
+                            array.append(dict)
+                        if str(key).endswith("4"):
+                            dict = {}
+                            for key,value in openDict.iteritems():
+                                dict[key] = value/np.where(openGap
+    >0,openGap, 0e-10)
+                            array.append(dict)
+                        if str(key).endswith("5"):
+                            dict = {}
+                            for key,value in openDict.iteritems():
+                                dict[key] = value/np.where(openGapPercent
+    >0,openGapPercent, 0e-10)
+                            array.append(dict)
+                        if str(key).endswith("6"):
+                            dict = {}
+                            for key,value in openDict.iteritems():
+                                dict[key] = value*openCompetingEntries
+                            array.append(dict)
+                        if str(key).endswith("7"):
+                            dict = {}
+                            for key,value in openDict.iteritems():
+                                dict[key] = value*openFactor
+                            array.append(dict)
+                    else:
+                        if str(key).endswith("1"):
+                            dict = {}
+                            for key,value in closedDict.iteritems():
+                                dict[key] = value/closedRange
+                            array.append(dict)
+                            # array.append(closedDict)
+                        if str(key).endswith("2"):
+                            dict = {}
+                            for key,value in closedDict.iteritems():
+                                dict[key] = value/float(closedIQR*(len(closedCostVectorRem)+1))
+                            array.append(dict)
+                        if str(key).endswith("3"):
+                            dict = {}
+                            for key,value in closedDict.iteritems():
+                                dict[key] = value/float(closedMedian*(len(closedCostVectorRem)+1))
+                            array.append(dict)
+                        if str(key).endswith("4"):
+                            dict = {}
+                            for key,value in closedDict.iteritems():
+                                dict[key] = value/np.where(closedGap>0,closedGap,0e-10)
+                            array.append(dict)
+                        if str(key).endswith("5"):
+                            dict = {}
+                            for key,value in closedDict.iteritems():
+                                dict[key] = value/np.where(closedGapPercent>0,closedGapPercent,0e-10)
+                            array.append(dict)
+                        if str(key).endswith("6"):
+                            dict = {}
+                            for key,value in closedDict.iteritems():
+                                dict[key] = value*closedCompetingEntries
+                            array.append(dict)
+                        if str(key).endswith("7"):
+                            dict = {}
+                            for key,value in closedDict.iteritems():
+                                dict[key] = value*closedFactor
+                            array.append(dict)
+
+    # for key, value in costMatrix2.iteritems():
+    #     print key," array is ", value,"\n"
 
 def generateDatFiles(costDict, trainingLabels, closedTrainingLabels, trainingFeatures, pathDict):
 
@@ -142,16 +230,22 @@ def generateDatFiles(costDict, trainingLabels, closedTrainingLabels, trainingFea
 
     print "Generating VW files...\n"
 
-    for (model,filepath), (model,costmatrix) in zip(pathDict.items(), costDict.items()):
+    for (model,filepath), (model,costArray) in zip(pathDict.items(), costDict.items()):
         f = open(filepath, 'w')
-        for i, (label,closedLabel, cost,features) in enumerate(zip(trainingLabels,closedTrainingLabels,costmatrix,trainingFeatures)):
-            if str(model).startswith("open"):
-                line = str(label) + ":" + str(cost) + " " + str(i) + "|" + (" ").join(map(str, features))
-                f.write(line+"\n")
+        for i, (label,closedLabel,costDict, features) in enumerate(zip(trainingLabels,closedTrainingLabels,costArray,trainingFeatures)):
+            line = ""
+            if model.startswith("single"):
+                if str(model).split('_')[1]=="open":
+                    line += str(label) + ":" + str(costDict) + " " + str(i) + "| " + features
+                    f.write(line+"\n")
+                else:
+                    line += str(closedLabel) + ":" + str(costDict) + " " + str(i) + "| " + features
+                    f.write(line+"\n")
             else:
-                line = str(closedLabel) + ":" + str(cost) + " " + str(i) + "|" + (" ").join(map(str, features))
+                for lb, cost in costDict.items():
+                    line += str(lb) + ":" + str(cost) + " "
+                line += str(i) + "| " + features
                 f.write(line+"\n")
-        f.close()
 
 def multiVowpalFormat(costVector, trainingLabels, trainingFeatures, datFile):
 
@@ -168,12 +262,6 @@ def multiVowpalFormat(costVector, trainingLabels, trainingFeatures, datFile):
 
 def training_features(inputSentences):
     global vectorizer
-    global open_cost_mat_train
-    global closed_cost_mat_train
-    global open_cost_mat_train_1
-    global closed_cost_mat_train_1
-    global open_cost_mat_train_2
-    global closed_cost_mat_train_2
 
     for i, sentence in enumerate(inputSentences[:15000]):
         # Dont train if the sentence contains a random region we don't care about
@@ -186,12 +274,14 @@ def training_features(inputSentences):
             # Closed evaluation only include certain training sentences
             closed_train_property_labels.append(sentence['predictedPropertyClosed'])
             closed_train_property_labels_threshold.append(sentence['predictedPropertyClosedThreshold'])
+
     # print "These are the clean words in the training sentences: ", train_wordlist
     # print "These are the labels in the training sentences: ", train_labels
     print "Creating the bag of words...\n"
-    train_data_features = vectorizer.fit_transform(train_wordlist)
-    train_data_features = train_data_features.toarray()
-    train_data_features = train_data_features.astype(np.float)
+    train_data_features = train_wordlist
+    # train_data_features = vectorizer.fit_transform(train_wordlist)
+    # train_data_features = train_data_features.toarray()
+    # train_data_features = train_data_features.astype(np.float)
 
     return train_data_features
 
@@ -205,8 +295,9 @@ def test_features(testSentences):
             test_property_labels.append(sentence['property'])
     # print "These are the clean words in the test sentences: ", clean_test_sentences
     # print "These are the mape labels in the test sentences: ", binary_test_labels
-    test_data_features = vectorizer.transform(clean_test_sentences)
-    test_data_features = test_data_features.toarray()
+    test_data_features = clean_test_sentences
+    # test_data_features = vectorizer.transform(clean_test_sentences)
+    # test_data_features = test_data_features.toarray()
 
     return test_data_features
 
@@ -221,7 +312,7 @@ if __name__ == "__main__":
     # We load in the allowable features and also no_region
     with open(sys.argv[3]) as featuresKept:
         properties = json.loads(featuresKept.read())
-    properties.append("no_region")
+    # properties.append("no_region")
 
     with open(sys.argv[2]) as testSentences:
         testSentences = json.loads(testSentences.read())
@@ -232,7 +323,7 @@ if __name__ == "__main__":
 
     for sentence in testSentences:
         if sentence['parsedSentence'] != {} and sentence['mape_label'] != {} and sentence['mape'] != {} and sentence[
-            'property'] != {} and sentence['property'] in properties:
+            'property'] != {}:
             # print sentence['property']
             finalTestSentences.append(sentence)
 
@@ -245,11 +336,7 @@ if __name__ == "__main__":
     closed_train_property_labels_threshold = []
     test_property_labels = []
 
-    cost_matrices = {}
 
-    for x in range(1,4):
-        cost_matrices["open_cost_{0}".format(x)]=[]
-        cost_matrices["closed_cost_{0}".format(x)]=[]
 
     vectorizer = CountVectorizer(analyzer="word", \
                                  tokenizer=None, \
@@ -262,7 +349,7 @@ if __name__ == "__main__":
     # This both sorts out the features and the training labels
     train_data_features = training_features(pattern2regions)
 
-    genCostMatrices(pattern2regions,cost_matrices)
+
 
     print len(train_data_features), "sets of training features"
 
@@ -284,19 +371,6 @@ if __name__ == "__main__":
     #     "no_region"), "positive closed mape threshold labels"
     # print "There are ", closed_train_property_labels_threshold.count(
     #     "no_region"), "negative closed mape threshold labels\n"
-
-    multi_logit = LogisticRegression(fit_intercept=True, class_weight='auto', multi_class='multinomial',
-                                     solver='newton-cg')
-
-    multi_logit_threshold = LogisticRegression(fit_intercept=True, class_weight='auto', multi_class='multinomial',
-                                               solver='newton-cg')
-
-    closed_multi_logit = LogisticRegression(fit_intercept=True, class_weight='auto', multi_class='multinomial',
-                                            solver='newton-cg')
-
-    closed_multi_logit_threshold = LogisticRegression(fit_intercept=True, class_weight='auto',
-                                                      multi_class='multinomial',
-                                                      solver='newton-cg')
 
     # Fit the logistic classifiers to the training set, using the bag of words as features
 
@@ -326,6 +400,16 @@ if __name__ == "__main__":
     Cost sensitive classification
     '''
 
+    cost_matrices = {}
+
+    for x in range(1,2):
+        cost_matrices["open_cost_{0}".format(x)]=[]
+        cost_matrices["closed_cost_{0}".format(x)]=[]
+        # cost_matrices["single_open_cost_{0}".format(x)]=[]
+        # cost_matrices["single_closed_cost_{0}".format(x)]=[]
+
+    genCostMatrices(pattern2regions,cost_matrices)
+
     paths = {}
 
     def generateDatPaths(model):
@@ -334,27 +418,72 @@ if __name__ == "__main__":
     for key in cost_matrices.keys():
         generateDatPaths(key)
 
+    openKeySet = set(train_property_labels)
+    print ""
+    openMapping = {val:key for key,val in enumerate(list(openKeySet))}
+    openInvMapping = {key:val for key,val in enumerate(list(openKeySet))}
+
+    closedKeySet = set(closed_train_property_labels)
+    closedMapping = {val:key for key,val in enumerate(list(closedKeySet))}
+    closedInvMapping = {key:val for key,val in enumerate(list(closedKeySet))}
+
+    # This has to be done after we gain the mappings
     openle = preprocessing.LabelEncoder()
     closedle = preprocessing.LabelEncoder()
 
     openle.fit(train_property_labels)
     train_property_labels = openle.transform(train_property_labels)
+    print "Single training labels are ",train_property_labels
 
     closedle.fit(closed_train_property_labels)
     closed_train_property_labels = closedle.transform(closed_train_property_labels)
+    print "Single training labels are ",closed_train_property_labels
+
+    for model,arr in cost_matrices.items():
+        if not model.startswith("single"):
+            if str(model).split('_')[0]=="open":
+                for open_dict in arr:
+                    # print "Open dict is", open_dict
+                    for key in open_dict.keys():
+                        # print "Key is",key
+                        open_dict[openMapping[key]] = open_dict.pop(key)
+            else:
+                for inner_dict in arr:
+                    # print "Closed dict is", inner_dict
+                    # print "Model is ",model
+                    for key in inner_dict.keys():
+                        # print "Key is",key
+                        inner_dict[closedMapping[key]] = inner_dict.pop(key)
 
 
-    generateDatFiles(cost_matrices, train_property_labels, closed_train_property_labels,train_data_features, paths)
+    generateDatFiles(cost_matrices,train_property_labels,closed_train_property_labels,train_data_features, paths)
+
+    test_path = os.path.join(sys.argv[4]+"test.dat")
+
+    # Generate test file
+    testfile = open(test_path, 'w')
+    for i,features in enumerate(test_data_features):
+        line=""
+        line += str(i) + "| " + features
+        testfile.write(line+"\n")
+
+
 
     train_commands = {}
     predict_commands = {}
 
     def genVWCommands(model):
-        if str(model).startswith("open"):
-            train_commands[model]=("vw --csoaa 24 " + os.path.join(sys.argv[4]+model+".dat") +" -f "+os.path.join(sys.argv[4])+model+".model")
+        if str(model).startswith("single"):
+            if str(model).split('_')[1]=="open":
+                train_commands[model]=("vw --csoaa 24 " + os.path.join(sys.argv[4]+model+".dat") +" -f "+os.path.join(sys.argv[4])+model+".model")
+            else:
+                train_commands[model]=("vw --csoaa 16 " + os.path.join(sys.argv[4]+model+".dat") +" -f "+os.path.join(sys.argv[4])+model+".model")
         else:
-            train_commands[model]=("vw --csoaa 16 " + os.path.join(sys.argv[4]+model+".dat") +" -f "+os.path.join(sys.argv[4])+model+".model")
-        predict_commands[model]=("vw -t -i "+os.path.join(sys.argv[4])+model+".model " + os.path.join(sys.argv[4]+model+".dat")+" -p "+os.path.join(sys.argv[4])+model+ ".predict")
+            if str(model).split('_')[0]=="open":
+                train_commands[model]=("vw --csoaa 24 " + os.path.join(sys.argv[4]+model+".dat") +" -f "+os.path.join(sys.argv[4])+model+".model")
+            else:
+                train_commands[model]=("vw --csoaa 16 " + os.path.join(sys.argv[4]+model+".dat") +" -f "+os.path.join(sys.argv[4])+model+".model")
+        predict_commands[model]=("vw -t -i "+os.path.join(sys.argv[4])+model+".model " + os.path.join(sys.argv[4]+"test.dat")+" -p "+os.path.join(sys.argv[4])+model+ ".predict")
 
     for key in cost_matrices.keys():
         genVWCommands(key)
@@ -365,7 +494,7 @@ if __name__ == "__main__":
     for (model,trainCommand), (model,predictCommand) in zip(train_commands.items(), predict_commands.items()):
         print "Model is",model
         print "Training command is ",trainCommand
-        print "predictCommand command is ",trainCommand
+        print "predictCommand command is ",predictCommand
         subprocess.call(trainCommand.split(' '))
         print "Finished Training: ", model
         subprocess.call(predictCommand.split(' '))
@@ -374,19 +503,24 @@ if __name__ == "__main__":
     cost_predictions = {}
 
     for model in cost_matrices.keys():
-        print "Model is ",model
+        print "Model is",model
         cost_predictions[model]=np.loadtxt(os.path.join(sys.argv[4]+model+".predict"))
         cost_predictions[model] = map(int,[i[0] for i in cost_predictions[model]])
-        print "Prediction is ",cost_predictions[model]
-        if str(model).startswith("open"):
-            print "Array is",model
-            cost_predictions[model]=map(str,openle.inverse_transform(cost_predictions[model]))
+        print "Predictions are",cost_predictions[model]
+        print "Mapped predictions are",openle.inverse_transform(cost_predictions[model])
+        if str(model).startswith("single"):
+            if str(model).split('_')[1]=="open":
+                cost_predictions[model]=map(str,openle.inverse_transform(cost_predictions[model]))
+            else:
+                cost_predictions[model]=map(str,closedle.inverse_transform(cost_predictions[model]))
         else:
-            print "Array is",model
-            cost_predictions[model]=map(str,closedle.inverse_transform(cost_predictions[model]))
+            if str(model).split('_')[0]=="open":
+                cost_predictions[model]=[openInvMapping[i] for i in cost_predictions[model]]
+            else:
+                cost_predictions[model]=[closedInvMapping[i] for i in cost_predictions[model]]
 
 
-    # print cost_predictions
+    print cost_predictions
 
     #
     # Load in the test data
@@ -401,118 +535,20 @@ if __name__ == "__main__":
     binary_cslr_predictions = {}
 
     for key,predictions in cost_predictions.iteritems():
-        binary_cslr_predictions[key]=[]
-        for predict,true in zip(predictions,y_multi_true):
-            if predict==true:
-                binary_cslr_predictions[key].append(1)
-            else:
-                binary_cslr_predictions[key].append(0)
+        if predictions:
+            binary_cslr_predictions[key]=[]
+            for predict,true in zip(predictions,y_multi_true):
+                if predict==true:
+                    binary_cslr_predictions[key].append(1)
+                else:
+                    binary_cslr_predictions[key].append(0)
 
     print binary_cslr_predictions
 
-    # #
-    # # output = pd.DataFrame(data=dict(parsed_sentence=test['parsedSentence'],
-    # #                                 features=clean_test_sentences,
-    # #
-    # #                                 # open_property_prediction_withMAPEthreshold=y_multi_logit_result_open_threshold,
-    # #                                 # open_property_prediction_withMAPEthreshold_toBinary=y_multi_logit_result_open_threshold_binary,
-    # #                                 # closed_property_prediction_withMAPEthreshold=y_multi_logit_result_closed_threshold,
-    # #                                 # closed_property_prediction_withMAPEthreshold_toBinary=y_multi_logit_result_closed_threshold_binary,
-    # #
-    # #                                 # open_property_probability_prediction_toBinary=y_multi_logit_result_open_prob_binary,
-    # #                                 # open_property_probability_threshold_prediction_toBinary=y_multi_logit_result_open_prob_binary_threshold,
-    # #                                 # closed_property_probability_prediction_toBinary=y_multi_logit_result_closed_prob_binary,
-    # #                                 # closed_property_probability_threshold_prediction_toBinary=y_multi_logit_result_closed_prob_binary_threshold,
-    # #                                 #
-    # #                                 # open_property_probability_prediction_toBinaryFixed=y_multi_logit_result_open_prob_binaryFixed,
-    # #                                 # open_property_probability_threshold_prediction_toBinaryFixed=y_multi_logit_result_open_prob_binary_thresholdFixed,
-    # #                                 #
-    # #                                 # closed_property_probability_prediction_toBinaryFixed=y_multi_logit_result_closed_prob_binaryFixed,
-    # #                                 # closed_property_probability_threshold_prediction_toBinaryFixed=y_multi_logit_result_closed_prob_binary_thresholdFixed,
-    # #
-    # #
-    # #                                 distant_supervision_open_withMAPEThreshold=y_distant_sv_property_openThreshold,
-    # #
-    # #                                 distant_supervision_closed_withMAPEThreshold=y_distant_sv_property_closedThreshold,
-    # #                                 distant_supervision_open_withMAPEThreshold_toBinary=y_openThreshold_distant_sv_to_binary,
-    # #
-    # #                                 distant_supervision_closed_withMAPEThreshold_toBinary=y_closedThreshold_distant_sv_to_binary,
-    # #
-    # #                                 test_data_mape_label=test['mape_label'],
-    # #                                 claim_label=y_true_claim,
-    # #                                 test_data_property_label=test['property'],
-    # #                                 andreas_prediction=y_pospred,
-    # #                                 threshold=np.full(len(y_true_claim), threshold),
-    # #                                 # probThreshold = np.full(len(y_true_claim), probThreshold),
-    # #                                 cost_sensitive_open= y_open_pred_test_cslr,
-    # #                                 cost_sensitive_closed = y_closed_pred_test_cslr,
-    # #                                 cost_sensitive_open_binary= y_open_pred_test_cslr_binary,
-    # #                                 cost_sensitive_closed_binary = y_closed_pred_test_cslr_binary,
-    # #                                 cost_sensitive_open_1= y_open_pred_test_cslr_1,
-    # #                                 cost_sensitive_closed_1 = y_closed_pred_test_cslr_1,
-    # #                                 cost_sensitive_open_binary_1= y_open_pred_test_cslr_binary_1,
-    # #                                 cost_sensitive_closed_binary_1 = y_closed_pred_test_cslr_binary_1,
-    # #                                 cost_sensitive_open_2= y_open_pred_test_cslr_2,
-    # #                                 cost_sensitive_closed_2 = y_closed_pred_test_cslr_2,
-    # #                                 cost_sensitive_open_binary_2= y_open_pred_test_cslr_binary_2,
-    # #                                 cost_sensitive_closed_binary_2 = y_closed_pred_test_cslr_binary_2
-    # #                                 ))
-    # #
-    # # # print str(os.path.splitext(sys.argv[2])[0]).split("/")
     # TODO This was an issue on command line - change to [2] if on command line and 8 if not
     testSet = str(os.path.splitext(sys.argv[2])[0]).split("/")[8]
-    # #
-    # # resultPath = os.path.join(sys.argv[4] + testSet + '_' + str(threshold) + '_' + str(probThreshold)+ '_costregressionResult.csv')
-    # #
-    # # output.to_csv(path_or_buf=resultPath, encoding='utf-8', index=False, cols=[
-    # #     'parsed_sentence',
-    # #     'features',
-    # #
-    # #     # 'open_property_prediction_withMAPEthreshold',
-    # #     # 'open_property_prediction_withMAPEthreshold_toBinary',
-    # #     # 'closed_property_prediction_withMAPEthreshold',
-    # #     # 'closed_property_prediction_withMAPEthreshold_toBinary',
-    # #
-    # #     # 'open_property_probability_prediction_toBinary',
-    # #     # 'open_property_probability_threshold_prediction_toBinary',
-    # #     #
-    # #     # 'closed_property_probability_prediction_toBinary',
-    # #     # 'closed_property_probability_threshold_prediction_toBinary',
-    # #     #
-    # #     # 'open_property_probability_prediction_toBinaryFixed',
-    # #     # 'open_property_probability_threshold_prediction_toBinaryFixed',
-    # #     #
-    # #     # 'closed_property_probability_prediction_toBinaryFixed',
-    # #     # 'closed_property_probability_threshold_prediction_toBinaryFixed',
-    # #
-    # #     'distant_supervision_open_withMAPEThreshold',
-    # #     'distant_supervision_closed_withMAPEThreshold',
-    # #     'distant_supervision_open_withMAPEThreshold_toBinary',
-    # #     'distant_supervision_closed_withMAPEThreshold_toBinary',
-    # #
-    # #     'test_data_mape_label',
-    # #     'claim_label',
-    # #     'andreas_property_label',
-    # #     'andreas_prediction',
-    # #     'threshold',
-    # #     # 'probThreshold',
-    # #     'cost_sensitive_open',
-    # #     'cost_sensitive_closed',
-    # #     'cost_sensitive_open_binary',
-    # #     'cost_sensitive_closed_binary',
-    # #     'cost_sensitive_open_1',
-    # #     'cost_sensitive_closed_1',
-    # #     'cost_sensitive_open_binary_1',
-    # #     'cost_sensitive_closed_binary_1',
-    # #     'cost_sensitive_open_2',
-    # #     'cost_sensitive_closed_2',
-    # #     'cost_sensitive_open_binary_2',
-    # #     'cost_sensitive_closed_binary_2'
-    # #
-    # # ])
-    # #
+
     # # # TODO - need to create a per property chart
-    # #
     # Now we write our precision F1 etc to an Excel file
     summaryDF = pd.DataFrame(columns=('precision', 'recall', 'f1', 'accuracy', 'evaluation set', 'threshold'))
     # # 'probThreshold'
@@ -558,20 +594,13 @@ if __name__ == "__main__":
         summaryDF = pd.concat([summaryDF, DF])
 
     for model,result in binary_cslr_predictions.iteritems():
-        # TODO - for some reason some unknown claims appear
+        print "Model is ",model
         print "True claim is",np.array(y_true_claim)
         print "Result is",result
 
         evaluation(y_true_claim, result, testSet, threshold)
 
-    columns = list([
-                    'Cost Sensitive Classification Open',
-                    'Cost Sensitive Classification Closed',
-                    'Cost Sensitive Classification Open 1',
-                    'Cost Sensitive Classification Closed 1',
-                    'Cost Sensitive Classification Open 2',
-                    'Cost Sensitive Classification Closed 2'
-                    ])
+    columns = list(binary_cslr_predictions.keys())
 
     summaryDF.index = columns
 
