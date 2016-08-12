@@ -15,6 +15,8 @@ TODO - evaluate the information extraction via 4 fold training?
 How to test coverage and average MAPE per statistical property?
 '''
 
+
+
 # This is about loading any file with property: region:value format
 def loadMatrix(jsonFile):
     print "loading from file " + jsonFile
@@ -170,6 +172,10 @@ if __name__ == "__main__":
     positiveClosedThresholdInstances = 0
     # negativeClosedInstances = 0
     # positiveClosedInstances = 0
+
+    rng = np.random.RandomState(101)
+
+    rng.shuffle(sentence2locations2values['sentences'])
 
     # Note this can be made smaller for iteration purposes we don't need to use all sentences
     for sentence in sentence2locations2values['sentences'][:50000]:

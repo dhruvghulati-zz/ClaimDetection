@@ -12,8 +12,120 @@ from nltk.text import Text
 TODO - this needs to really sort out the problems with too many training instances for region/value slots e.g. duplicates for Democratic Republic of Congo, however have fixed problem with parsed sentence including duplicate slots (so better for bag of words)
 http://stackoverflow.com/questions/38509239/need-to-remove-items-from-both-a-list-and-a-dictionary-of-tuple-value-pairs-at-s
 '''
-# this function performs a dictNER matching to help with names that Stanford NER fails
-# use with caution, it ignores everything apart from the tokens, over-writing existing NER tags
+
+# data/train_jsons
+# data/output/sentenceRegionValue.json
+# data/locationNames
+# data/test_jsons
+# data/output/testData.json
+# data/output/sentenceSlotsFiltered.json
+# 0.3
+# data/output/sentenceSlotsDiscard.json
+
+def getShortestDepPaths(sentenceDAG, locationTokenID, numberTokenID):
+    shortestPaths = []
+    try:
+        # get the shortest paths
+        # get the list as it they are unlikely to be very many and we need to len()
+        tempShortestPaths = list(networkx.all_shortest_paths(sentenceDAG, source=locationTokenID, target=numberTokenID))
+        # print "Temporary shortest path between ",numberTokenID,"and ",locationTokenID,"is ",tempShortestPaths
+        # if the paths found are shorter than the ones we had (or we didn't have any)
+        if (len(shortestPaths) == 0) or len(shortestPaths[0]) > len(tempShortestPaths[0]):
+            shortestPaths = tempShortestPaths
+        # if they have equal length add them
+        elif len(shortestPaths[0]) == len(tempShortestPaths[0]):
+            shortestPaths.extend(tempShortestPaths)
+    # if not paths were found, do nothing
+    except networkx.exception.NetworkXNoPath:
+        pass
+    # print "Shortest paths are",shortestPaths
+    return shortestPaths
+
+# given the a dep path defined by the nodes, get the string of the lexicalized dep path, possibly extended by one more dep
+# This is non-extended so far
+def depPath2StringExtend(sentenceDAG, path, locationTokenIDs, numberTokenIDs, extend=False):
+    # path is the shortest path
+    strings = []
+    # this keeps the various bits of the string
+    pathStrings = []
+    # get the first dep which is from the location
+    # print "Path 0 is ",path[0]
+    # print "Path 1 is ",path[1]
+    pathStrings.append("LOCATION_SLOT~" + sentenceDAG[path[0]][path[1]]["label"])
+    # for the words in between add the lemma and the dep
+    hasContentWord = False
+    for seqOnPath, tokenId in enumerate(path[1:-1]):
+        if sentenceDAG.node[tokenId]["ner"] == "O":
+            pathStrings.append(sentenceDAG.node[tokenId]["word"].lower() + "~" + sentenceDAG[tokenId][path[seqOnPath+2]]["label"])
+            if sentenceDAG.node[tokenId]["pos"][0] in "NVJR":
+                hasContentWord = True
+        else:
+            pathStrings.append(sentenceDAG.node[tokenId]["ner"] + "~" + sentenceDAG[tokenId][path[seqOnPath+2]]["label"])
+
+    pathStrings.append("NUMBER_SLOT")
+
+
+
+    if hasContentWord:
+        strings.append("+".join(pathStrings))
+
+    # print "String is ",strings
+
+    if extend:
+        # create additional paths by adding all out-edges from the number token (except for the ones on the path)
+        # the extension is always added left of the node
+        for nodeOnPath in path:
+            # go over each node on the path
+            outEdges = sentenceDAG.out_edges_iter([nodeOnPath])
+
+            for pathIdx, edge in enumerate(outEdges):
+                tempPathStrings = copy.deepcopy(pathStrings)
+                # the source of the edge we knew
+                curNode, outNode = edge
+                # if we are not going on the path
+                # This is adapted for being only one number ID
+                if outNode not in path and outNode is not numberTokenIDs:
+                    if sentenceDAG.node[outNode]["ner"] == "O":
+                        if hasContentWord or sentenceDAG.node[outNode]["pos"][0] in "NVJR":
+                            #print "*extend*" + sentenceDAG.node[outNode]["lemma"] + "~" + sentenceDAG[curNode][outNode]["label"]
+                            #print pathStrings.insert(pathIdx, "*extend*" + sentenceDAG.node[outNode]["lemma"] + "~" + sentenceDAG[curNode][outNode]["label"])
+                            tempPathStrings.insert(pathIdx, "*extend*" + sentenceDAG.node[outNode]["word"].lower() + "~" + sentenceDAG[curNode][outNode]["label"])
+                            #print tempPathStrings
+                            strings.append("+".join(tempPathStrings))
+                    elif hasContentWord:
+                        tempPathStrings.insert(pathIdx, "*extend*" + sentenceDAG.node[outNode]["ner"] + "~" + sentenceDAG[curNode][outNode]["label"])
+                        strings.append("+".join(tempPathStrings))
+
+
+#         # create additional paths by adding all out-edges from the number token (except for the one taking as back)
+#         # the number token is the last one on the path
+#         #outEdgesFromNumber = sentenceDAG.out_edges_iter([path[-1]])
+#         #for edge in outEdgesFromNumber:
+#             # the source of the edge we knew
+#             dummy, outNode = edge
+#             # if we are not going back
+#             if outNode != path[-2] and outNode not in numberTokenIDs:
+#                 if sentenceDAG.node[outNode]["ner"] == "O":
+#                     if hasContentWord or  sentenceDAG.node[outNode]["pos"][0] in "NVJR":
+#                         strings.append("+".join(pathStrings + ["NUMBER_SLOT~" + sentenceDAG[path[-1]][outNode]["label"] + "~" + sentenceDAG.node[outNode]["lemma"] ]))
+#                 elif hasContentWord:
+#                     strings.append("+".join(pathStrings + ["NUMBER_SLOT~" + sentenceDAG[path[-1]][outNode]["label"] + "~" + sentenceDAG.node[outNode]["ner"] ]))
+#
+#         # do the same for the LOCATION
+#         outEdgesFromLocation = sentenceDAG.out_edges_iter([path[0]])
+#         for edge in outEdgesFromLocation:
+#             # the source of the edge we knew
+#             dummy, outNode = edge
+#             # if we are not going on the path
+#             if outNode != path[1] and outNode not in locationTokenIDs:
+#                 if sentenceDAG.node[outNode]["ner"] == "O":
+#                     if hasContentWord or  sentenceDAG.node[outNode]["pos"][0] in "NVJR":
+#                         strings.append("+".join([sentenceDAG.node[outNode]["lemma"] + "~"+ sentenceDAG[path[0]][outNode]["label"]] + pathStrings + ["NUMBER_SLOT"]))
+#                 elif hasContentWord:
+#                     strings.append("+".join([sentenceDAG.node[outNode]["ner"] + "~"+ sentenceDAG[path[0]][outNode]["label"]] + pathStrings + ["NUMBER_SLOT"]))
+#
+
+    return strings
 
 def dictLocationMatching(sentence, tokenizedLocations):
     # first re-construct the sentence as a string
@@ -123,56 +235,26 @@ def fixSlots(sampleTokens,tokenIDs2location,tokenIDs2number):
     # print "Location is: ", location
     # print "Number is: ", number
 
-    newTokens = []
-    newnumberTokenIDs = {}
-    newlocationTokenIDs = {}
+    token_by_index = dict(enumerate(sampleTokens))
+    groups = tokenIDs2number.keys() + tokenIDs2location.keys()
+    for group in groups:
+        token_by_index[group[0]] = ''.join(token_by_index.pop(index) for index in group)
 
-    new_ind = 0
-    skip = False
+    newTokens = [token for _, token in sorted(token_by_index.items(),key=lambda (index, _): index)]
 
-    for ind in range(len(sampleTokens)):
-        if skip:
-            skip=False
-            continue
-
-        for loc_ind in tokenIDs2location.keys():
-            if ind in loc_ind:
-                newTokens.append(sampleTokens[ind+1])
-                newlocationTokenIDs[(new_ind,)] = tokenIDs2location[loc_ind]
-                new_ind += 1
-                if len(loc_ind) > 1: # Skip next position if there are 2 elements in a tuple
-                    skip = True
-                break
-        else:
-            for num_ind in tokenIDs2number.keys():
-                if ind in num_ind:
-                    newTokens.append(sampleTokens[ind])
-                    newnumberTokenIDs[(new_ind,)] = tokenIDs2number[num_ind]
-                    new_ind += 1
-                    if len(num_ind) > 1:
-                        skip = True
-                    break
-            else:
-                newTokens.append(sampleTokens[ind])
-                new_ind += 1
+    new_index_by_token = dict(map(lambda (i, t): (t, i), enumerate(newTokens)))
+    newnumberTokenIDs = {(new_index_by_token[token_by_index[group[0]]],): value
+                  for group, value in tokenIDs2number.items()}
+    newlocationTokenIDs = {(new_index_by_token[token_by_index[group[0]]],): value
+                    for group, value in tokenIDs2location.items()}
 
     # print "New Location token IDs are: ", newlocationTokenIDs
     # print "New Number token IDs are: ", newnumberTokenIDs
-    # # print "Location is: ", location
-    # # print "Number is: ", number
+    # # # # print "Location is: ", location
+    # # # # print "Number is: ", number
     # print "New Tokens are", newTokens
 
     return newTokens, newlocationTokenIDs,newnumberTokenIDs
-
-
-# data/train_jsons
-# data/output/sentenceRegionValue.json
-# data/locationNames
-# data/test_jsons
-# data/output/testData.json
-# data/output/sentenceSlotsFiltered.json
-# 0.3
-# data/output/sentenceSlotsDiscard.json
 
 if __name__ == "__main__":
 
@@ -211,7 +293,7 @@ if __name__ == "__main__":
     # print "Dictionary with hardcoded tokenized location names"
     # print tokenizedLocationNames
     # Use len(jsonFiles) for all, 100 for testing
-    for jsonFileName in itertools.islice(jsonFiles , 0, len(jsonFiles)):
+    for jsonFileName in itertools.islice(jsonFiles , 0, 100):
     # for fileCounter, jsonFileName in enumerate(jsonFiles):
         # For each file in the HTML JSON
         print "processing " + jsonFileName
@@ -233,7 +315,7 @@ if __name__ == "__main__":
 
                 sentenceDAG = buildDAGfromSentence(sentence)
 
-                print "Dependencies are",sentenceDAG
+                # print "Dependencies are",sentenceDAG
 
                 wordsInSentence = []
 
@@ -241,23 +323,16 @@ if __name__ == "__main__":
                     wordsInSentence.append(token["word"])
                 sample = " ".join(wordsInSentence)
 
-                # sampleTokens = sample.split()
+                print "Sentence is ",sample
 
-                # newTokens, newTokenIDs2location,newTokenIDs2number = fixSlots(sampleTokens,tokenIDs2location,tokenIDs2number)
+                sampleTokens = sample.split()
 
-                # for locationTokenIDs, location in tokenIDs2location.items():
-                #     for numberTokenIDs, number in tokenIDs2number.items():
-                #         print "Location token IDs are: ", locationTokenIDs
-                #         print "Number token IDs are: ", numberTokenIDs
-                #         print "Location is: ", location
-                #         print "Number is: ", number
+                newTokens, newTokenIDs2location,newTokenIDs2number = fixSlots(sampleTokens,tokenIDs2location,tokenIDs2number)
 
-                # TODO - run a function to create new tokens
+                cleanSample = " ".join(newTokens)
 
-                for locationTokenIDs, location in tokenIDs2location.items():
-                    for numberTokenIDs, number in tokenIDs2number.items():
-
-
+                for locationTokenIDs, location in newTokenIDs2location.items():
+                    for numberTokenIDs, number in newTokenIDs2number.items():
 
                         sentenceDict = {}
 
@@ -266,36 +341,46 @@ if __name__ == "__main__":
                         else:
                             sentenceDict["dense"]=False
 
-                        sampleTokens = sample.split()
-
-                        # newTokens, newLocationTokenIDs,newNumberTokenIDs = fixSlots(sampleTokens,tokenIDs2location,tokenIDs2number)
-
                         sentenceDict["sentence"] = sample
 
                         sentenceDict["location-value-pair"] = {location:number}
 
-                        prevNoId = 0
-                        prevLocId = 0
-
                         for locationTokenID in locationTokenIDs:
                             for numberTokenID in numberTokenIDs:
 
+                                # sampleTokens[numberTokenID] = "NUMBER_SLOT"
+                                # sampleTokens[locationTokenID] = "LOCATION_SLOT"
+                                newTokens = cleanSample.split()
 
-                                # print locationTokenID
+                                # TODO - need to calculate a fresh bunch of tokens here
 
-                                # TODO - recalculate the tokens
+                                newTokens[numberTokenID] = "NUMBER_SLOT"
+                                newTokens[locationTokenID] = "LOCATION_SLOT"
 
-
-                                sampleTokens[numberTokenID] = "NUMBER_SLOT"
-                                sampleTokens[locationTokenID] = "LOCATION_SLOT"
-
-
-                                # print "New tokens",newTokens
-
-                                slotSentence = (" ").join(sampleTokens)
+                                slotSentence = (" ").join(newTokens)
                                 sentenceDict["parsedSentence"] = slotSentence
 
-                        sentences2location2values["sentences"].append(sentenceDict)
+                                # TODO - need to get the one shortest path for a specific location ID and number ID
+                                # keep all the shortest paths between the number and the tokens of the location
+                                shortestPaths = getShortestDepPaths(sentenceDAG, locationTokenID, numberTokenID)
+                                # shortestPath = [val for sublist in shortestPaths for val in sublist]
+                                # print "Shortest paths are",shortestPaths
+
+                                # ignore paths longer than some number deps (=tokens_on_path + 1)
+                                if len(shortestPaths) > 0 and len(shortestPaths[0]) < 10:
+                                    for shortestPath in shortestPaths:
+                                        # print "Shortest path is",shortestPath
+                                        # TODO - this should only spit out one pathstring
+                                        pathStrings = depPath2StringExtend(sentenceDAG, shortestPath, locationTokenID, numberTokenID)
+                                        # pathString = [val for sublist in pathStrings for val in sublist]
+                                        # print "Path strings are",pathStrings
+                                        for i,pathString in enumerate(pathStrings):
+                                            # print i
+                                            print "Parsed sentence is",slotSentence
+                                            print "Path string is",pathString,"\n"
+                                            sentenceDict["depPath"] = pathString
+
+                                sentences2location2values["sentences"].append(sentenceDict)
                         sentences2location2valuesSlots.append(sentenceDict)
 
     # Filtering the sentenceSlots afterwards
@@ -303,19 +388,20 @@ if __name__ == "__main__":
     # TODO - need to also delete training instances with multiple region value-pairs, and do this for all countries
     for i,(sentence,finalSentence) in enumerate(zip(sentences2location2valuesSlots,sentences2location2values["sentences"])):
         sampleTokens = sentence['parsedSentence'].split()
-        # print "Sentence is ",sentence['parsedSentence']
-        # print "Final sentence is",finalSentence
-        # finalSampleTokens = finalSentence['parsedSentence'].split()
-        # print "Old sample tokens are",sampleTokens,"\n"
-        newTokens = []
-        for i,token in enumerate(sampleTokens):
-            if i>0 and ((token == "LOCATION_SLOT" and sampleTokens[i-1]=="LOCATION_SLOT") or (token == "NUMBER_SLOT" and sampleTokens[i-1]=="NUMBER_SLOT")):
-                continue
-            else:
-                newTokens.append(token)
-
-        sentence['parsedSentence']=(' ').join(newTokens)
-        finalSentence['parsedSentence']=(' ').join(newTokens)
+        # # print "Sentence is ",sentence['parsedSentence']
+        # # print "Final sentence is",finalSentence
+        # # finalSampleTokens = finalSentence['parsedSentence'].split()
+        # # print "Old sample tokens are",sampleTokens,"\n"
+        # # TODO - this just changes the tokens, but we still have multiple examples of same region-value pair. Can also try just deduplicating - if same sentence and same region value pair, then delete later on.
+        # newTokens = []
+        # for i,token in enumerate(sampleTokens):
+        #     if i>0 and ((token == "LOCATION_SLOT" and sampleTokens[i-1]=="LOCATION_SLOT") or (token == "NUMBER_SLOT" and sampleTokens[i-1]=="NUMBER_SLOT")):
+        #         continue
+        #     else:
+        #         newTokens.append(token)
+        #
+        # sentence['parsedSentence']=(' ').join(newTokens)
+        # finalSentence['parsedSentence']=(' ').join(newTokens)
 
         # print "New sentence",sentence['parsedSentence'],"\n"
 
@@ -325,9 +411,9 @@ if __name__ == "__main__":
         # Remove items with too many location and number slots
         denseSentence = False
         tooManySlots = sentence["dense"]
-        analyser = Text(newTokens)
+        analyser = Text(sampleTokens)
 
-        for token in newTokens:
+        for token in sampleTokens:
             # if token =="LOCATION_SLOT":
             #     locationCount+=1
             # elif token =="NUMBER_SLOT":
@@ -339,7 +425,7 @@ if __name__ == "__main__":
             # # print "Number of values", len(tokenIDs2number)
             #     tooManySlots = True
             #     break
-            wordDensity = float(analyser.count(token))/float(len(newTokens))
+            wordDensity = float(analyser.count(token))/float(len(sampleTokens))
             # print wordDensity
             if wordDensity>wordDensityThreshold:
                 # print "wordDensity is",wordDensity

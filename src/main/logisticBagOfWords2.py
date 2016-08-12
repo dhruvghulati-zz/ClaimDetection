@@ -194,22 +194,22 @@ if __name__ == "__main__":
     testSet = str(os.path.splitext(sys.argv[2])[0]).split("/")[2]
 
     multi_logit = LogisticRegression(fit_intercept=True, class_weight='balanced', multi_class='multinomial',
-                                     solver='newton-cg')
+                                     solver='lbfgs')
 
 
 
     multi_logit_threshold = LogisticRegression(fit_intercept=True, class_weight='balanced', multi_class='multinomial',
-                                               solver='newton-cg')
+                                               solver='lbfgs')
 
 
 
     closed_multi_logit = LogisticRegression(fit_intercept=True, class_weight='balanced', multi_class='multinomial',
-                                            solver='newton-cg')
+                                            solver='lbfgs')
 
 
     closed_multi_logit_threshold = LogisticRegression(fit_intercept=True, class_weight='balanced',
                                                       multi_class='multinomial',
-                                                      solver='newton-cg')
+                                                      solver='lbfgs')
 
 
 

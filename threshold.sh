@@ -19,8 +19,8 @@
 #       done
 # done
 
-# python src/main/propertyPredictor.py data/freebaseTriples.json data/sentenceMatrixFiltered.json data/output/predictedProperties.json 0.05 data/featuresKept.json
-# python src/main/testFeatures.py data/featuresKept.json data/output/testLabels.json data/output/hyperTestLabels.json 0.05 data/freebaseTriples.json data/output/devLabels.json
+python src/main/propertyPredictor.py data/freebaseTriples.json data/sentenceMatrixFiltered.json data/output/predictedProperties.json 0.05 data/featuresKept.json
+python src/main/testFeatures.py data/featuresKept.json data/output/testLabels.json data/output/hyperTestLabels.json 0.05 data/freebaseTriples.json data/output/devLabels.json
 # python src/main/naiveBaselines.py data/output/predictedProperties.json data/output/hyperTestLabels.json data/featuresKept.json data/output/final_zero/ data/output/final_zero/summaryEvaluation.csv 0.05
-python src/main/logisticBagOfWords2.py data/output/predictedProperties.json data/output/hyperTestLabels.json data/featuresKept.json data/output/final_zero/ data/output/final_zero/summaryEvaluationTest.csv
-python src/main/probPredictor.py data/output/final_zero/ data/output/final_zero/summaryEvaluation.csv 0.01
+python src/main/logisticBagOfWords2.py data/output/predictedProperties.json data/output/hyperTestLabels.json data/featuresKept.json data/output/lfbg/ data/output/lfbg/summaryEvaluation.csv
+python src/main/probPredictor.py data/output/lfbg/ data/output/lfbg/summaryEvaluation.csv 0.01

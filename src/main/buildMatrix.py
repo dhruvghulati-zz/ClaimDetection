@@ -349,14 +349,15 @@ if __name__ == "__main__":
     
                         # keep all the shortest paths between the number and the tokens of the location
                         shortestPaths = getShortestDepPaths(sentenceDAG, locationTokenIDs, numberTokenIDs)
-                        print "Shortest paths are",shortestPaths
+                        # print "Shortest paths are",shortestPaths
                         
                         # ignore paths longer than some number deps (=tokens_on_path + 1)
                         if len(shortestPaths) > 0 and len(shortestPaths[0]) < 10:
                             for shortestPath in shortestPaths:
                                 pathStrings = depPath2StringExtend(sentenceDAG, shortestPath, locationTokenIDs, numberTokenIDs)
-                                print "Path strings are",pathStrings
+                                # print "Path strings are",pathStrings
                                 for pathString in pathStrings:
+                                    print "Path string is",pathString
                                     if pathString not in pattern2location2values:
                                         pattern2location2values[pathString] = {}
                                         
@@ -372,10 +373,11 @@ if __name__ == "__main__":
                                     
                         # now get the surface strings 
                         surfacePatternTokenSeqs = getSurfacePatternsExtend(sentence, locationTokenIDs, numberTokenIDs)
-                        print "Surface pattern token sequences",surfacePatternTokenSeqs
+                        # print "Surface pattern token sequences",surfacePatternTokenSeqs
                         for surfacePatternTokens in surfacePatternTokenSeqs:
                             if len(surfacePatternTokens) < 15:
                                 surfaceString = ",".join(surfacePatternTokens)
+                                print "Surface string is",surfaceString
                                 if surfaceString not in pattern2location2values:
                                     pattern2location2values[surfaceString] = {}
                                     
@@ -386,8 +388,10 @@ if __name__ == "__main__":
                                 pattern2location2values[surfaceString][location].append(number)
 
                                 if surfaceString in pattern2sentences:
+                                    # print "Sample is",sample,"and this surface string is not there"
                                     pattern2sentences[surfaceString].append(sample)
                                 else:
+                                    # print "Sample is",sample,"and this surface string is there"
                                     pattern2sentences[surfaceString] = [sample]
                                         
         # save every 1000 files
