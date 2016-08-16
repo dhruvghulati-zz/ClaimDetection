@@ -131,6 +131,7 @@ def testSentenceLabels(dict_list):
                     kbval_index = keys.index("kb_value")
                     value_index = keys.index("extracted_value")
                     alias_index = keys.index("alias")
+                    dep_index = keys.index("dep")
                     sentence_index = keys.index("sentence")
                     country_index = keys.index("country")
                     for row_index in xrange(1, s.nrows):
@@ -139,6 +140,7 @@ def testSentenceLabels(dict_list):
                         sentence['property'] = {}
                         sentence['mape'] = s.cell(row_index, mape_index).value
                         sentence['claim'] = s.cell(row_index, claim_index).value
+                        sentence['dependencies'] = s.cell(row_index, dep_index).value
                         # TODO - on command line this should change to remove ../..
                         if filepath=="data/labeled_claims/internet_users_percent_population_claims.xlsx" or filepath=="data/labeled_claims/population_growth_rate_claims.xlsx":
                             # print filepath

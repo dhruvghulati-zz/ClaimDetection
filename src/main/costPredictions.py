@@ -9,6 +9,13 @@ from sklearn.metrics import recall_score
 from sklearn.metrics import f1_score
 import collections
 
+# data/output/cost/models.txt
+# data/output/cost/open_label_mapping.txt
+# data/output/cost/closed_label_mapping.txt
+# data/output/cost/devLabels.json
+# data/output/cost/
+# data/output/cost/summaryEvaluationCost.csv
+
 #
 def convert(data):
     if isinstance(data, basestring):

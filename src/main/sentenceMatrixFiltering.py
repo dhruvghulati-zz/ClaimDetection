@@ -21,15 +21,11 @@ import operator
 from operator import itemgetter
 import pprint
 
-'''
-TODO - this needs to account for any further cleaning beyond aliasing we need to do, for example not including anything where the value is 0.
-'''
-
-# data/output/sentenceRegionValue.json
+# data/output/sentenceRegionValue1.json
+# data/output/sentenceSlotsFiltered1.json
 # data/aliases.json
-# data/sentenceMatrixFiltered.json
-# data/output/sentenceSlotsFiltered.json
-# data/output/uniqueSentenceLabels.json
+# data/sentenceMatrixFiltered1.json
+# data/output/uniqueSentenceLabels1.json
 
 # We distinguish between the two by re- quiring each region-pattern combination to have appeared at least twice.
 
@@ -40,31 +36,32 @@ TODO - this needs to account for any further cleaning beyond aliasing we need to
 np.seterr(all='raise')
 
 # load the file
+print "Loading the model file...\n"
 with open(sys.argv[1]) as jsonFile:
     pattern2locations2values = json.loads(jsonFile.read())
     # pattern2locations2values = yaml.safe_load(jsonFile)
 
-# load the file
-with open(sys.argv[4]) as sentenceSlotsFull:
+print "Loading the slots file...\n"
+with open(sys.argv[2]) as sentenceSlotsFull:
     fullSentenceSlots = json.loads(sentenceSlotsFull.read())
     # fullSentenceSlots = yaml.safe_load(sentenceSlotsFull)
 
 print "Model sentences before filtering:", len(pattern2locations2values['sentences'])
 print "labelling sentences before filtering:", len(fullSentenceSlots)
 
-getvals = operator.itemgetter(u"parsedSentence", u"sentence",u"location-value-pair")
-getvalsLabels = operator.itemgetter(u"sentence")
+modelVals = operator.itemgetter(u"sentence",u"location-value-pair")
+slotVals = operator.itemgetter(u"parsedSentence")
 
-pattern2locations2values['sentences'].sort(key=getvals)
-fullSentenceSlots.sort(key=getvalsLabels)
+pattern2locations2values['sentences'].sort(key=modelVals)
+fullSentenceSlots.sort(key=slotVals)
 
 result = []
-for k, g in itertools.groupby(pattern2locations2values['sentences'], getvals):
+for k, g in itertools.groupby(pattern2locations2values['sentences'], modelVals):
     result.append(g.next())
 pattern2locations2values['sentences'][:] = result
 
 result = []
-for k, g in itertools.groupby(fullSentenceSlots, getvalsLabels):
+for k, g in itertools.groupby(fullSentenceSlots, slotVals):
     result.append(g.next())
 fullSentenceSlots[:] = result
 
@@ -72,22 +69,24 @@ print "Unique sentences after filtering:", len(pattern2locations2values['sentenc
 print "Unique labelling sentences after filtering:", len(fullSentenceSlots)
 
 # Now remove any sentences with values of 0:
-
-
 finalpattern2locations2values={}
-finalpattern2locations2values['sentences']=[]
+finalpattern2locations2values['sentences'] = pattern2locations2values['sentences']
 
-for i,sentence in enumerate(pattern2locations2values['sentences']):
-    for key, value in sentence['location-value-pair'].iteritems():
-        if value!=0.0:
-            finalpattern2locations2values['sentences'].append(sentence)
-
-
-print "Unique sentences after deleting 0 values:", len(finalpattern2locations2values['sentences'])
+#
+# finalpattern2locations2values={}
+# finalpattern2locations2values['sentences']=[]
+#
+# for i,sentence in enumerate(pattern2locations2values['sentences']):
+#     for key, value in sentence['location-value-pair'].iteritems():
+#         if value!=0.0:
+#             finalpattern2locations2values['sentences'].append(sentence)
+#
+#
+# print "Unique sentences after deleting 0 values:", len(finalpattern2locations2values['sentences'])
 
 #load the file
 print "Loading the aliases file\n"
-with open(sys.argv[2]) as jsonFile:
+with open(sys.argv[3]) as jsonFile:
     region2aliases = json.loads(jsonFile.read())
 
 # so we first need to take the location2aliases dict and turn in into aliases to region
@@ -165,7 +164,7 @@ for index, dataTriples in enumerate(finalpattern2locations2values["sentences"]):
 
 print "Writing to filtered file for model\n"
 
-with open(sys.argv[3], "wb") as out:
+with open(sys.argv[4], "wb") as out:
     json.dump(finalpattern2locations2values, out,indent=4)
 
 print "Writing to filtered file for manual labelling\n"

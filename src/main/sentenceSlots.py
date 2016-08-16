@@ -22,22 +22,24 @@ http://stackoverflow.com/questions/38509239/need-to-remove-items-from-both-a-lis
 # 0.3
 # data/output/sentenceSlotsDiscard.json
 
-def getShortestDepPaths(sentenceDAG, locationTokenID, numberTokenID):
+def getShortestDepPaths(sentenceDAG, locationTokenIDs, numberTokenIDs):
     shortestPaths = []
-    try:
-        # get the shortest paths
-        # get the list as it they are unlikely to be very many and we need to len()
-        tempShortestPaths = list(networkx.all_shortest_paths(sentenceDAG, source=locationTokenID, target=numberTokenID))
-        # print "Temporary shortest path between ",numberTokenID,"and ",locationTokenID,"is ",tempShortestPaths
-        # if the paths found are shorter than the ones we had (or we didn't have any)
-        if (len(shortestPaths) == 0) or len(shortestPaths[0]) > len(tempShortestPaths[0]):
-            shortestPaths = tempShortestPaths
-        # if they have equal length add them
-        elif len(shortestPaths[0]) == len(tempShortestPaths[0]):
-            shortestPaths.extend(tempShortestPaths)
-    # if not paths were found, do nothing
-    except networkx.exception.NetworkXNoPath:
-        pass
+    for locationTokenID in locationTokenIDs:
+        for numberTokenID in numberTokenIDs:
+            try:
+                # get the shortest paths
+                # get the list as it they are unlikely to be very many and we need to len()
+                tempShortestPaths = list(networkx.all_shortest_paths(sentenceDAG, source=locationTokenID, target=numberTokenID))
+                # print "Temporary shortest path between ",numberTokenID,"and ",locationTokenID,"is ",tempShortestPaths
+                # if the paths found are shorter than the ones we had (or we didn't have any)
+                if (len(shortestPaths) == 0) or len(shortestPaths[0]) > len(tempShortestPaths[0]):
+                    shortestPaths = tempShortestPaths
+                # if they have equal length add them
+                elif len(shortestPaths[0]) == len(tempShortestPaths[0]):
+                    shortestPaths.extend(tempShortestPaths)
+            # if not paths were found, do nothing
+            except networkx.exception.NetworkXNoPath:
+                pass
     # print "Shortest paths are",shortestPaths
     return shortestPaths
 
@@ -227,16 +229,10 @@ def buildDAGfromSentence(sentence):
     return sentenceDAG
 
 
-def fixSlots(sampleTokens,tokenIDs2location,tokenIDs2number):
-    # print "Old tokens are",sampleTokens
-    #
-    # print "Old Location token IDs are: ", tokenIDs2location
-    # print "Old Number token IDs are: ", tokenIDs2number
-    # print "Location is: ", location
-    # print "Number is: ", number
+def fixSlots(oldTokens,locationTokenIDs,numberTokenIDs):
 
-    token_by_index = dict(enumerate(sampleTokens))
-    groups = tokenIDs2number.keys() + tokenIDs2location.keys()
+    token_by_index = dict(enumerate(oldTokens))
+    groups = numberTokenIDs.keys() + locationTokenIDs.keys()
     for group in groups:
         token_by_index[group[0]] = ''.join(token_by_index.pop(index) for index in group)
 
@@ -244,14 +240,14 @@ def fixSlots(sampleTokens,tokenIDs2location,tokenIDs2number):
 
     new_index_by_token = dict(map(lambda (i, t): (t, i), enumerate(newTokens)))
     newnumberTokenIDs = {(new_index_by_token[token_by_index[group[0]]],): value
-                  for group, value in tokenIDs2number.items()}
+                  for group, value in numberTokenIDs.items()}
     newlocationTokenIDs = {(new_index_by_token[token_by_index[group[0]]],): value
-                    for group, value in tokenIDs2location.items()}
+                    for group, value in locationTokenIDs.items()}
 
     # print "New Location token IDs are: ", newlocationTokenIDs
     # print "New Number token IDs are: ", newnumberTokenIDs
-    # # # # print "Location is: ", location
-    # # # # print "Number is: ", number
+    # # # # # print "Location is: ", location
+    # # # # # print "Number is: ", number
     # print "New Tokens are", newTokens
 
     return newTokens, newlocationTokenIDs,newnumberTokenIDs
@@ -293,7 +289,7 @@ if __name__ == "__main__":
     # print "Dictionary with hardcoded tokenized location names"
     # print tokenizedLocationNames
     # Use len(jsonFiles) for all, 100 for testing
-    for jsonFileName in itertools.islice(jsonFiles , 0, 100):
+    for jsonFileName in itertools.islice(jsonFiles , 0, len(jsonFiles)):
     # for fileCounter, jsonFileName in enumerate(jsonFiles):
         # For each file in the HTML JSON
         print "processing " + jsonFileName
@@ -311,6 +307,7 @@ if __name__ == "__main__":
             tokenIDs2location = getLocations(sentence)
             # if there was at least one location and one number build the dependency graph:
             # Check if len(sentence["tokens"])<120 step is valid
+
             if len(tokenIDs2number) > 0 and len(tokenIDs2location) > 0 and len(sentence["tokens"])<120:
 
                 sentenceDAG = buildDAGfromSentence(sentence)
@@ -323,85 +320,102 @@ if __name__ == "__main__":
                     wordsInSentence.append(token["word"])
                 sample = " ".join(wordsInSentence)
 
-                print "Sentence is ",sample
+                # print tokenIDs2number
+                # print tokenIDs2location
+
+                # print "Sentence is ",sample
 
                 sampleTokens = sample.split()
 
                 newTokens, newTokenIDs2location,newTokenIDs2number = fixSlots(sampleTokens,tokenIDs2location,tokenIDs2number)
 
-                cleanSample = " ".join(newTokens)
+                # cleanSample = " ".join(newTokens)
 
                 for locationTokenIDs, location in newTokenIDs2location.items():
                     for numberTokenIDs, number in newTokenIDs2number.items():
+                        # for locationTokenID in locationTokenIDs:
+                        #     for numberTokenID in numberTokenIDs:
+                            newTokens[numberTokenIDs[0]] = "NUMBER_SLOT"
+                            newTokens[locationTokenIDs[0]] = "LOCATION_SLOT"
+
+                for locationTokenIDs, location in tokenIDs2location.items():
+                    for numberTokenIDs, number in tokenIDs2number.items():
 
                         sentenceDict = {}
-
-                        if len(numberTokenIDs)>3 or len(locationTokenIDs)>3:
+        #
+                        sentenceDict["sentence"] = sample
+                        if len(tokenIDs2location)>3 or len(tokenIDs2number)>3:
                             sentenceDict["dense"]=True
                         else:
                             sentenceDict["dense"]=False
 
-                        sentenceDict["sentence"] = sample
+                        sentenceDict["location-value-pair"] = {location: number}
 
-                        sentenceDict["location-value-pair"] = {location:number}
+                        sampleTokens = sample.split()
 
                         for locationTokenID in locationTokenIDs:
-                            for numberTokenID in numberTokenIDs:
+                            sampleTokens[locationTokenID] = "LOCATION_SLOT"
 
-                                # sampleTokens[numberTokenID] = "NUMBER_SLOT"
-                                # sampleTokens[locationTokenID] = "LOCATION_SLOT"
-                                newTokens = cleanSample.split()
+                        for numberTokenID in numberTokenIDs:
+                            sampleTokens[numberTokenID] = "NUMBER_SLOT"
 
-                                # TODO - need to calculate a fresh bunch of tokens here
+                        slotSentence = (" ").join(sampleTokens)
+                        sentenceDict["parsedSentence"] = slotSentence
 
-                                newTokens[numberTokenID] = "NUMBER_SLOT"
-                                newTokens[locationTokenID] = "LOCATION_SLOT"
+                        # for locationTokenID in locationTokenIDs:
+                        #     for numberTokenID in numberTokenIDs:
 
-                                slotSentence = (" ").join(newTokens)
-                                sentenceDict["parsedSentence"] = slotSentence
+                        shortestPaths = getShortestDepPaths(sentenceDAG, locationTokenIDs, numberTokenIDs)
+                        # shortestPath = [val for sublist in shortestPaths for val in sublist]
+                        # print "Shortest paths are",shortestPaths
 
-                                # TODO - need to get the one shortest path for a specific location ID and number ID
-                                # keep all the shortest paths between the number and the tokens of the location
-                                shortestPaths = getShortestDepPaths(sentenceDAG, locationTokenID, numberTokenID)
-                                # shortestPath = [val for sublist in shortestPaths for val in sublist]
-                                # print "Shortest paths are",shortestPaths
+                        # ignore paths longer than some number deps (=tokens_on_path + 1)
+                        if len(shortestPaths) > 0 and len(shortestPaths[0]) < 10:
+                            for shortestPath in shortestPaths:
+                                # print "Shortest path is",shortestPath
+                                pathStrings = depPath2StringExtend(sentenceDAG, shortestPath, locationTokenIDs, numberTokenIDs)
+                                # pathString = [val for sublist in pathStrings for val in sublist]
 
-                                # ignore paths longer than some number deps (=tokens_on_path + 1)
-                                if len(shortestPaths) > 0 and len(shortestPaths[0]) < 10:
-                                    for shortestPath in shortestPaths:
-                                        # print "Shortest path is",shortestPath
-                                        # TODO - this should only spit out one pathstring
-                                        pathStrings = depPath2StringExtend(sentenceDAG, shortestPath, locationTokenID, numberTokenID)
-                                        # pathString = [val for sublist in pathStrings for val in sublist]
-                                        # print "Path strings are",pathStrings
-                                        for i,pathString in enumerate(pathStrings):
-                                            # print i
-                                            print "Parsed sentence is",slotSentence
-                                            print "Path string is",pathString,"\n"
-                                            sentenceDict["depPath"] = pathString
+                                # print "Path strings are",pathStrings
+                                if len(pathStrings) > 0:
+                                    for i,pathString in enumerate(pathStrings):
+                                        # print i
+                                        text = [pathString]
+                                        bigrams = [b for l in text for b in zip(l.split("+")[:-1], l.split("+")[1:])]
+                                        # print "Bigrams are",bigrams
+                                            # Note this just takes one of the bigrams which is the closest in terms of tokens
+                                        sentenceDict["depPath"] = bigrams
 
-                                sentences2location2values["sentences"].append(sentenceDict)
+
+                        fullSlotSentence = (" ").join(newTokens)
+                        sentenceDict["slotSentence"] = fullSlotSentence
+                        # print "Slot sentence is",fullSlotSentence
+                        # print "Parsed sentence is",slotSentence,"\n"
+                        sentences2location2values["sentences"].append(sentenceDict)
                         sentences2location2valuesSlots.append(sentenceDict)
+
 
     # Filtering the sentenceSlots afterwards
 
+    result = []
+
     # TODO - need to also delete training instances with multiple region value-pairs, and do this for all countries
     for i,(sentence,finalSentence) in enumerate(zip(sentences2location2valuesSlots,sentences2location2values["sentences"])):
+        fullSlotTokens = sentence['slotSentence'].split()
+        # print "Slot is ",sentence['slotSentence']
+        # print "Final sentence is",finalSentence
         sampleTokens = sentence['parsedSentence'].split()
-        # # print "Sentence is ",sentence['parsedSentence']
-        # # print "Final sentence is",finalSentence
-        # # finalSampleTokens = finalSentence['parsedSentence'].split()
-        # # print "Old sample tokens are",sampleTokens,"\n"
-        # # TODO - this just changes the tokens, but we still have multiple examples of same region-value pair. Can also try just deduplicating - if same sentence and same region value pair, then delete later on.
-        # newTokens = []
-        # for i,token in enumerate(sampleTokens):
-        #     if i>0 and ((token == "LOCATION_SLOT" and sampleTokens[i-1]=="LOCATION_SLOT") or (token == "NUMBER_SLOT" and sampleTokens[i-1]=="NUMBER_SLOT")):
-        #         continue
-        #     else:
-        #         newTokens.append(token)
-        #
-        # sentence['parsedSentence']=(' ').join(newTokens)
-        # finalSentence['parsedSentence']=(' ').join(newTokens)
+        # print "Parsed sentence is",sentence['parsedSentence']
+        # print "Old sample tokens are",sampleTokens,"\n"
+        newTokens = []
+        for i,token in enumerate(sampleTokens):
+            if i>0 and ((token == "LOCATION_SLOT" and sampleTokens[i-1]=="LOCATION_SLOT") or (token == "NUMBER_SLOT" and sampleTokens[i-1]=="NUMBER_SLOT")):
+                continue
+            else:
+                newTokens.append(token)
+
+        sentence['parsedSentence']=(' ').join(newTokens)
+        finalSentence['parsedSentence']=(' ').join(newTokens)
 
         # print "New sentence",sentence['parsedSentence'],"\n"
 
@@ -411,20 +425,20 @@ if __name__ == "__main__":
         # Remove items with too many location and number slots
         denseSentence = False
         tooManySlots = sentence["dense"]
-        analyser = Text(sampleTokens)
+        analyser = Text(fullSlotTokens)
 
-        for token in sampleTokens:
-            # if token =="LOCATION_SLOT":
-            #     locationCount+=1
-            # elif token =="NUMBER_SLOT":
-            #     numberCount+=1
-            # if locationCount>3 or numberCount>3:
-            #     # print "Too many tokens are",sampleTokens
-            #     # print "Sentence is",sample
-            # # print "Number of locations", len(tokenIDs2location)
-            # # print "Number of values", len(tokenIDs2number)
-            #     tooManySlots = True
-            #     break
+        for token in fullSlotTokens:
+            if token =="LOCATION_SLOT":
+                locationCount+=1
+            elif token =="NUMBER_SLOT":
+                numberCount+=1
+            if locationCount>3 or numberCount>3:
+                # print "Too many tokens are",sampleTokens
+                # print "Sentence is",sample
+            # print "Number of locations", len(tokenIDs2location)
+            # print "Number of values", len(tokenIDs2number)
+                tooManySlots = True
+                break
             wordDensity = float(analyser.count(token))/float(len(sampleTokens))
             # print wordDensity
             if wordDensity>wordDensityThreshold:
@@ -437,13 +451,15 @@ if __name__ == "__main__":
                 break
 
         if tooManySlots or denseSentence:
+            # print "Print true"
             # print "Dense sentence is",sentence["sentence"]
             sentences2location2valuesDiscarded.append(sentence)
-            del sentences2location2valuesSlots[i]
+        else:
+            result.append(sentence)
 
 
     print "Model sentence length",len(sentences2location2values['sentences'])
-    print "Labelled sentence length",len(sentences2location2valuesSlots)
+    print "Labelled sentence length",len(result)
     print "Discarded sentence length",len(sentences2location2valuesDiscarded)
 
     with open(outputFile, "wb") as out:
@@ -452,7 +468,7 @@ if __name__ == "__main__":
 
     with open(labelFile, "wb") as out:
         #Links the sentences to the region-value pairs
-        json.dump(sentences2location2valuesSlots, out,indent=4)
+        json.dump(result, out,indent=4)
 
     with open(discardFile, "wb") as out:
         #Links the sentences to the region-value pairs
