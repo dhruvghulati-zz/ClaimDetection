@@ -115,7 +115,7 @@ def testSentenceLabels(dict_list):
         temp_properties.append(property.split("/")[3])
         # TODO - Command line issue as I had hard coded the location of these files ../../, in command line remove
     print "Temporary properties are",len(temp_properties)
-    for subdir, dirs, files in os.walk('data/labeled_claims'):
+    for subdir, dirs, files in os.walk('../../data/labeled_claims'):
         # This is causing errors
         for file in files:
             # print os.path.join(subdir, file)
@@ -140,9 +140,23 @@ def testSentenceLabels(dict_list):
                         sentence['property'] = {}
                         sentence['mape'] = s.cell(row_index, mape_index).value
                         sentence['claim'] = s.cell(row_index, claim_index).value
-                        sentence['dependencies'] = s.cell(row_index, dep_index).value
+                        text = str(s.cell(row_index, dep_index).value)
+                        # print "text is ",text
+                        # text = "[u'LOCATION_SLOT~-prep_in+*extend*to~prepc_according_to+expectancy~-nsubj+is~parataxis+NUMBER~nsubj+NUMBER_SLOT', u'LOCATION_SLOT~-prep_in+*extend*to~prepc_according_to+expectancy~-nsubj+is~parataxis+NUMBER~nsubj+NUMBER_SLOT']"
+                        text =  re.sub(r'\[u|\]',"",text)
+                        text = text.split(",")[0]
+                        text = re.sub(r'\'',"",text)
+                        text = text.split("+")
+                        bigrams = [text[i:i+2] for i in xrange(len(text)-2)]
+                        bigrams = [("+").join(bigram).encode('utf-8') for bigram in bigrams]
+                        bigrams = (' ').join(map(str, bigrams))
+                        # print "Bigrams are",bigrams
+                        # print "Wordgrams are",words+bigrams.decode("utf-8")
+                        # bigrams = ('').join(bigrams)
+                        # print "bigrams are",bigrams
+                        sentence['depPath'] = bigrams
                         # TODO - on command line this should change to remove ../..
-                        if filepath=="data/labeled_claims/internet_users_percent_population_claims.xlsx" or filepath=="data/labeled_claims/population_growth_rate_claims.xlsx":
+                        if filepath=="../../data/labeled_claims/internet_users_percent_population_claims.xlsx" or filepath=="../../data/labeled_claims/population_growth_rate_claims.xlsx":
                             # print filepath
                             # print "False"
                             extracted_country = s.cell(row_index, country_index).value
@@ -214,11 +228,14 @@ def labelSlotFiltering(testLabels):
     for i, dataTriples in enumerate(testLabels):
         # print "Old sentence is" ,dataTriples['parsedSentence']
         dataTriples['mape_label'] = {}
+        dataTriples['categorical_mape_label'] = {}
         # if dataTriples['mape']:
         if dataTriples['mape']<threshold:
             dataTriples['mape_label']=1
+            dataTriples['categorical_mape_label'] = dataTriples['property']
         else:
             dataTriples['mape_label']=0
+            dataTriples['categorical_mape_label'] = "no_region"
             # print "New sentence is ", slotText
     # print "Total test labels is", len(testLabels)
     # print "Total positive labels is ",len([dataTriples['mape_label'] for a,dataTriples in enumerate(testLabels) if dataTriples['mape_label']==1])
@@ -266,18 +283,39 @@ if __name__ == "__main__":
 
     # print "Total test labels with no mape is ",len([dataTriples['mape'] for a,dataTriples in enumerate(testLabels) if dataTriples['mape']=={}])
 
-    print "Total test labels with property is",len([dataTriples['property'] for a,dataTriples in enumerate(testLabels) if dataTriples['property']!={}])
+    cleanTestLabels1 = []
 
-    # print "Total test labels with parsed sentences is ",len([dataTriples['parsedSentence'] for a,dataTriples in enumerate(testLabels) if dataTriples['parsedSentence']!={}])
+    for i, dataTriples in enumerate(testLabels):
+        if dataTriples['property']!={} and dataTriples['property']!="":
+            cleanTestLabels1.append(dataTriples)
+
+    print "Total test labels with property is",len(cleanTestLabels1)
+
+    cleanTestLabels2 = []
+
+    for i, dataTriples in enumerate(cleanTestLabels1):
+        if dataTriples['parsedSentence']!={} and dataTriples['parsedSentence']!="":
+            cleanTestLabels2.append(dataTriples)
+
+    print "Total test labels with parsed sentence is",len(cleanTestLabels2)
+
+    cleanTestLabels3 = []
+
+    for i, dataTriples in enumerate(cleanTestLabels2):
+        if dataTriples['mape']!={} and dataTriples['mape']!="":
+            cleanTestLabels3.append(dataTriples)
+
+    print "Total test labels with mape is",len(cleanTestLabels3)
+
 
     cleanTestLabels = []
 
     # Here we remove blanks and clean up the test set - note we ignore some properties because we are not sure if they contain a claim or not - ?
-    for i, dataTriples in enumerate(testLabels):
-        if dataTriples['mape']!={} and dataTriples['parsedSentence']!={} and dataTriples['property']!={} and dataTriples['claim']!="?" and dataTriples['claim']!="":
+    for i, dataTriples in enumerate(cleanTestLabels3):
+        if dataTriples['claim']!="?" and dataTriples['claim']!="":
             cleanTestLabels.append(dataTriples)
 
-    print "Total clean test labels with no ? claim is", len(cleanTestLabels),"\n"
+    print "Total clean test labels with claim labels is", len(cleanTestLabels),"\n"
 
     properties.append("no_region")
 

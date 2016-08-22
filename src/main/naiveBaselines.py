@@ -5,6 +5,15 @@ This file predicts only once for models that do not change with hyperparameters:
 Closed_Property_Bag_of_Words_Multinomial_Logistic_Regression_w_Binary_Evaluation
 Open_Property_Bag_of_Words_Multinomial_Logistic_Regression_w_Binary_Evaluation
 
+Closed_Property_Bigrams_Multinomial_Logistic_Regression_w_Binary_Evaluation
+Open_Property_Bigrams_Multinomial_Logistic_Regression_w_Binary_Evaluation
+
+Closed_Property_Depgrams_Multinomial_Logistic_Regression_w_Binary_Evaluation
+Open_Property_Depgrams_Multinomial_Logistic_Regression_w_Binary_Evaluation
+
+Closed_Property_Wordgrams_Multinomial_Logistic_Regression_w_Binary_Evaluation
+Open_Property_Wordgrams_Multinomial_Logistic_Regression_w_Binary_Evaluation
+
 Open_Property_Distant_Supervision_Model
 Closed_Property_Distant_Supervision_Model
 
@@ -42,14 +51,9 @@ rng = np.random.RandomState(101)
 
 #
 
-'''TODO -
-    Bi-grams, LSTMs, Word2Vec
-    Cost-sensitive classification
-    Use class-weight = balanced
-    Cross validation
-    Check training parameters and that they have been parsed correctly
-    Precision, recall, F1 for each region
-    Are we training on too many positive instances (no region)?
+'''
+TODO - Cross validation
+TODO - per property F1
 '''
 
 def sentence_to_words(sentence, remove_stopwords=False):

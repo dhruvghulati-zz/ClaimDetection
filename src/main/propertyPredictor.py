@@ -2,6 +2,11 @@
 This is a file that predicts the closest statistical property for each region-value pair for each sentence from Freebase
 
 I use a MAPE method to calculate.
+
+python src/main/propertyPredictor.py data/freebaseTriples.json data/sentenceMatrixFilteredZero.json data/output/predictedProperties.json 0.05 data/featuresKept.json
+
+
+
 '''
 from __future__ import division
 
@@ -14,8 +19,6 @@ import json
 TODO - evaluate the information extraction via 4 fold training?
 How to test coverage and average MAPE per statistical property?
 '''
-
-
 
 # This is about loading any file with property: region:value format
 def loadMatrix(jsonFile):
@@ -44,8 +47,6 @@ def loadMatrix(jsonFile):
     return property2region2value
 
 
-
-
 def absError(numer,denom):
     # print "Denominator is ",denom
     # print "Numerator is",numer
@@ -58,7 +59,7 @@ def findMatch(target, country):
     filtered_country = {property: country.get(property) for property in properties}
     # Remove all values with no value for the property we want e.g. Qatar
     filtered_country = {k: v for k, v in filtered_country.items() if v}
-    # print "Filtered country is",filtered_country
+    # print "Filtered property value pairs for match is",filtered_country
     openCostVector = sorted([float(absError(target, v)) for k, v in country.items()])
     closedCostVector = sorted([float(absError(target, v)) for k, v in filtered_country.items()])
     #
@@ -80,7 +81,7 @@ def findMatch(target, country):
     # print "Open match is ",openMatch
     # print "Closed match is ",closedMatch
 
-    return openMatch, closedMatch,openCostVector,closedCostVector,openCostDict,closedCostDict
+    return openMatch, closedMatch,openCostVector,closedCostVector,openCostDict,closedCostDict, filtered_country
 
 def update(sentence):
 
@@ -96,14 +97,16 @@ def update(sentence):
     global threshold
     # print 'Checking sentence: ', sentence
     (c,target), = sentence.get("location-value-pair").items()
+
     # print "Checking country: ", c,"and value: ", target
     # res = sentence.copy()
     # print property2region2value
     if c in property2region2value:
         res = sentence.copy()
+
         country = property2region2value[c]
         # This is the open matched property
-        matchedProperty, closedMatch, openCostArr, closedCostArr,openDict, closedDict = findMatch(target,country)
+        matchedProperty, closedMatch, openCostArr, closedCostArr,openDict, closedDict,closedKBDict = findMatch(target,country)
         # print "This is the openCostArr",openCostArr
         # print "This is the closedCostArr",closedCostArr
         # print "This is matched property: ", matchedProperty
@@ -113,11 +116,10 @@ def update(sentence):
         # print "Open error is",error
 
         res.update({'predictedPropertyClosed': closedMatch, 'closedMeanAbsError': closedError,
-                    'closedCostArr':closedCostArr,'closedCostDict':closedDict
-
+                    'closedCostArr':closedCostArr,'closedCostDict':closedDict,'closedValues':closedKBDict
                     })
         res.update({'predictedPropertyOpen': matchedProperty, 'meanAbsError': error,
-                    'openCostArr':openCostArr,'openCostDict':openDict
+                    'openCostArr':openCostArr,'openCostDict':openDict,'openValues':country
                     })
         if error<threshold:
             res.update({'predictedPropertyOpenThreshold': matchedProperty})
@@ -157,8 +159,7 @@ if __name__ == "__main__":
     print "We have ",len(properties),"features kept\n"
 
     print "sentences to predict properties for:", len(sentence2locations2values['sentences'])
-    '''TODO this should be able to take a MAPE threshold as argument
-    '''
+
     predictionSentences = []
 
     property2region2value = loadMatrix(sys.argv[1])
@@ -172,6 +173,8 @@ if __name__ == "__main__":
     positiveClosedThresholdInstances = 0
     # negativeClosedInstances = 0
     # positiveClosedInstances = 0
+
+    # Shuffle the predictions
 
     rng = np.random.RandomState(101)
 

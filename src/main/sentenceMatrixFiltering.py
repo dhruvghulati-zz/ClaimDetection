@@ -68,9 +68,9 @@ fullSentenceSlots[:] = result
 print "Unique sentences after filtering:", len(pattern2locations2values['sentences'])
 print "Unique labelling sentences after filtering:", len(fullSentenceSlots)
 
-# Now remove any sentences with values of 0:
-finalpattern2locations2values={}
-finalpattern2locations2values['sentences'] = pattern2locations2values['sentences']
+# # Now remove any sentences with values of 0:
+# finalpattern2locations2values={}
+# finalpattern2locations2values['sentences'] = pattern2locations2values['sentences']
 
 #
 # finalpattern2locations2values={}
@@ -114,7 +114,7 @@ for alias, region in alias2region.items():
 
 print "Applying aliases for model\n"
 
-for index, dataTriples in enumerate(finalpattern2locations2values["sentences"]):
+for index, dataTriples in enumerate(pattern2locations2values['sentences']):
     # print index
     # so here are the locations
     # we must be careful in case two or more locations are collapsed to the same region
@@ -165,7 +165,7 @@ for index, dataTriples in enumerate(finalpattern2locations2values["sentences"]):
 print "Writing to filtered file for model\n"
 
 with open(sys.argv[4], "wb") as out:
-    json.dump(finalpattern2locations2values, out,indent=4)
+    json.dump(pattern2locations2values, out,indent=4)
 
 print "Writing to filtered file for manual labelling\n"
 
