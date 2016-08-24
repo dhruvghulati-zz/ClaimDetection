@@ -2,10 +2,18 @@ import re
 from nltk.corpus import stopwords  # Import the stop word list
 import json
 import sys
+
+from sklearn import preprocessing
 from sklearn.feature_extraction.text import CountVectorizer
 from nltk.stem.porter import PorterStemmer
 import string
 import nltk
+import numpy as np
+from scipy import stats
+import os
+from numpy import histogram
+import matplotlib.pyplot as plt
+from matplotlib.pyplot import plot,ion,show
 
 # normalize all words in a text by stripping out punctuation and whitespace
 def text_normalizer(inputSentences):
@@ -120,6 +128,38 @@ def sentence_to_words(sentence, remove_stopwords=False):
         words = [w for w in words if not w in stops]
     return (words)
 
+# This is about loading any file with property: region:value format
+def loadMatrix(jsonFile):
+    print "loading from file " + jsonFile
+    with open(jsonFile) as freebaseFile:
+        property2region2value = json.loads(freebaseFile.read())
+
+    regions = set([])
+    valueCounter = 0
+    kbValues = []
+    for country, property2value in property2region2value.items():
+        # Check for nan values and remove them
+        for property, value in property2value.items():
+            if not np.isfinite(value):
+                del property2value[property]
+                print "REMOVED:", value, " for ", property, " ", country
+        if len(property2value) == 0:
+            del property2region2value[property]
+            print "REMOVED property:", property, " no values left"
+        else:
+            # print "Length of properties is",len(property2value)
+            valueCounter += len(property2value)
+            regions = regions.union(set(property2value.keys()))
+
+    for country, property2value in property2region2value.items():
+        for property, value in property2value.items():
+            kbValues.append(value)
+
+    print len(kbValues),  " unique values"
+    print len(property2region2value), " countries"
+    print len(regions),  " unique properties"
+    print valueCounter, " values loaded"
+    return kbValues
 
 def training_features(inputSentences):
     global vectorizer
@@ -164,7 +204,9 @@ if __name__ == "__main__":
     # training data
     # load the sentence file for training
 
-    with open(sys.argv[1]) as trainingSentences:
+    kbValues = np.array(loadMatrix(sys.argv[1]))
+
+    with open(sys.argv[2]) as trainingSentences:
         pattern2regions = json.loads(trainingSentences.read())
 
     print "We have ", len(pattern2regions), " training sentences."
@@ -173,7 +215,7 @@ if __name__ == "__main__":
         properties = json.loads(featuresKept.read())
     properties.append("no_region")
 
-    with open(sys.argv[2]) as testSentences:
+    with open(sys.argv[4]) as testSentences:
         testSentences = json.loads(testSentences.read())
 
     finalTestSentences = []
@@ -193,6 +235,8 @@ if __name__ == "__main__":
     closed_train_property_labels_threshold = []
     test_property_labels = []
 
+    trainingValues = []
+
     vectorizer = CountVectorizer(analyzer="word", \
                                  tokenizer=None, \
                                  preprocessor=None, \
@@ -204,6 +248,40 @@ if __name__ == "__main__":
     # This both sorts out the features and the training labels
 
     pattern2regions=pattern2regions[:15000]
+
+    for dict in pattern2regions:
+        trainingValues.append(dict['location-value-pair'].values())
+
+    trainingValues = np.array(trainingValues).flatten()
+
+    # bins=np.logspace(0.1, 1.0, 50)
+    # plt.hist(kbValues,bins=10)  # plt.hist passes it's arguments to np.histogram
+    # ion()
+    # plt.gca().set_xscale("log")
+    # print 'continue computation'
+    # plt.title("Histogram of KB Values")
+    # plt.show()
+    # np.logspace(0.1, 1.0, 50)
+    # kbValues = stats.zscore(kbValues)
+    # trainingValues = stats.zscore(trainingValues)
+
+    # kbValues = preprocessing.scale(kbValues)
+    # trainingValues = preprocessing.scale(trainingValues)
+
+    # trainingValues = preprocessing.scale(trainingValues, axis=0, with_mean=True, with_std=True, copy=True)
+    # kbValues = preprocessing.scale(kbValues, axis=0, with_mean=True, with_std=True, copy=True)
+
+    print min(kbValues),max(kbValues)
+
+    print min(trainingValues),max(trainingValues)
+
+    plt.hist(kbValues,alpha=0.5,label='KB Values')  # plt.hist passes it's arguments to np.histogram
+    ion()
+    # plt.gca().set_xscale("log")
+    plt.hist(trainingValues,alpha=0.5,label='Training Values')
+    plt.title("Histogram of Values")
+    plt.legend(loc='upper right')
+    plt.savefig(os.path.join(sys.argv[5],'valuecomp.png'))
 
     train_data_features = training_features(pattern2regions)
 

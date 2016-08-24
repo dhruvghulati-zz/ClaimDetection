@@ -9,11 +9,12 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 import os
 from sklearn.pipeline import Pipeline
 import scipy.stats as st
+from collections import defaultdict
+import statsmodels.robust.scale.mad as meanabsdev
+
+xs = defaultdict(list)
 from numpy import inf
 import operator
-
-def sigmoid(x):
-  return 1 / (1 + math.exp(-x))
 
 # This is about loading any file with property: region:value format
 def loadMatrix(jsonFile):
@@ -41,12 +42,6 @@ def loadMatrix(jsonFile):
     print valueCounter, " values loaded"
     return property2region2value
 
-def absError(numer,denom):
-    # print "Denominator is ",denom
-    # print "Numerator is",numer
-    # print "Error is ",abs(denom-numer)/np.abs(float(numer)),"\n"
-    return abs(denom-numer)/np.abs(float(numer))
-
 
 def sentence_to_words(sentence, remove_stopwords=False):
     letters_only = re.sub('[^a-zA-Z| LOCATION_SLOT | NUMBER_SLOT]', " ", sentence)
@@ -60,47 +55,25 @@ def sentence_to_words(sentence, remove_stopwords=False):
 
 def genCostMatrices(inputSentences, costMatrix,openVector, closedVector):
     global property2region2value
-    property2rangeMin = {}
-    property2rangeMax = {}
 
+    freebaseDF = pd.DataFrame(property2region2value)
+
+    property2rangeMin = freebaseDF.apply(np.min,axis=1).to_dict()
+    property2rangeStd = freebaseDF.apply(np.std,axis=1).to_dict()
+    property2rangeMean = freebaseDF.apply(np.mean,axis=1).to_dict()
+    property2rangeMax = freebaseDF.apply(np.max,axis=1).to_dict()
     # Now we use the spread of values across properties in the KB
-    for country, property2value in property2region2value.items():
-        for property,value in property2value.items():
-            if property not in property2rangeMax:
-                property2rangeMax[property] = 0
-            if property2rangeMax[property]<value:
-                property2rangeMax[property]=value
-            if property2rangeMin[property]>value:
-                property2rangeMin[property] = value
-
     property2range = {key: property2rangeMax[key] - property2rangeMin.get(key, 0) for key in property2rangeMax.keys()}
 
-
-
-    property2rangeMean = sum(d['value'] for d in property2region2value) / len(property2region2value)
-    property2rangeMean = {key: np.mean([inner_value for key,inner_value for inner_dict.items() for outer_key,inner_dict in property2region2value.items()]) for key,inner_value for inner_dict.items() for outer_key,inner_dict in property2region2value.items()}
-    print property2rangeMean
-    property2rangeMax = {}
-
-    normalisedInputSentences = {}
-
-    # for i, sentence in enumerate(inputSentences[:15000]):
-    #     for property, value in sentence['closedValues'].items():
-
-    # Now we have to create global versions of each variable
-
-
+    # Now we use the spread of values across the sentences in the training data
     stdValue = np.std([sentence['location-value-pair'].values()[0]for i,sentence in enumerate((inputSentences[:15000]))])
     minValue = np.min([sentence['location-value-pair'].values()[0]for i,sentence in enumerate((inputSentences[:15000]))])
     maxValue = np.max([sentence['location-value-pair'].values()[0]for i,sentence in enumerate((inputSentences[:15000]))])
     meanValue = np.mean([sentence['location-value-pair'].values()[0]for i,sentence in enumerate((inputSentences[:15000]))])
     range = maxValue - minValue
-    print "minValue",minValue
-    print "maxValue",maxValue
 
     for i, sentence in enumerate(inputSentences[:15000]):
         if sentence:
-
 
             # Generate all the variables I need
             error = float(sentence['meanAbsError'])
@@ -113,12 +86,16 @@ def genCostMatrices(inputSentences, costMatrix,openVector, closedVector):
             if extracted == 0:
                 extracted == 0e-10
 
+            '''
+            Get the normalised version of the value globally
+            '''
+
             extractedNormal = (extracted-minValue)/range
-
-            print "extractedNormal",extractedNormal
-            extractedNormal = np.abs((extracted-meanValue)/stdValue)
-
-            print "extractedNormal",extractedNormal
+            # print "extractedNormal",extractedNormal
+            #
+            extractedNormalZScore = np.abs((extracted-meanValue)/stdValue)
+            #
+            # print "extractedNormal",extractedNormal
 
             openAPE = np.array(sentence['openCostArr'])
             closedAPE = np.array(sentence['closedCostArr'])
@@ -158,17 +135,43 @@ def genCostMatrices(inputSentences, costMatrix,openVector, closedVector):
             closedDict_2 = {}
             closedDict_3 = {}
 
+            # Now everything is prenormalised values
+
             normalisedClosedValues = {}
             normalisedOpenValues = {}
+
+            normalisedClosedValues = {}
+            normalisedOpenValues = {}
+
+            openAPE_normalised = []
+            openAPE_1_normalised = []
+            openAPE_2_normalised  = []
+            openAPE_3_normalised  = []
+
+            closedAPE_normalised  = []
+            closedAPE_1_normalised  = []
+            closedAPE_2_normalised  = []
+            closedAPE_3_normalised  = []
+
+            openDict_normalised  = {}
+            openDict_1_normalised  = {}
+            openDict_2_normalised  = {}
+            openDict_3_normalised  = {}
+
+            closedDict_normalised  = {}
+            closedDict_1_normalised  = {}
+            closedDict_2_normalised  = {}
+            closedDict_3_normalised  = {}
 
             for property, value in sentence['closedValues'].items():
                 closedAPE_1.append(np.abs(value-extracted))
                 closedAPE_2.append(np.abs(value-extracted)/(np.abs(extracted)+np.abs(value)))
                 closedAPE_3.append(np.abs(value-extracted)/np.abs(extracted+value))
 
-                openDict_1[property] = (np.abs(value-extracted))
-                openDict_2[property] = (np.abs(value-extracted)/(np.abs(extracted)+np.abs(value)))
-                openDict_3[property] = (np.abs(value-extracted)/np.abs(extracted+value))
+                closedDict_1[property] = (np.abs(value-extracted))
+                closedDict_2[property] = (np.abs(value-extracted)/(np.abs(extracted)+np.abs(value)))
+                closedDict_3[property] = (np.abs(value-extracted)/np.abs(extracted+value))
+
                 normalisedClosedValues[property]=((value-property2rangeMin[property])/property2range[property])
 
             for property, value in sentence['openValues'].items():
@@ -176,16 +179,37 @@ def genCostMatrices(inputSentences, costMatrix,openVector, closedVector):
                 openAPE_2.append(np.abs(value-extracted)/(np.abs(extracted)+np.abs(value)))
                 openAPE_3.append(np.abs(value-extracted)/np.abs(extracted+value))
 
-                closedDict_1[property] = (np.abs(value-extracted))
-                closedDict_2[property] = (np.abs(value-extracted)/(np.abs(extracted)+np.abs(value)))
-                closedDict_3[property] = (np.abs(value-extracted)/np.abs(extracted+value))
+                openDict_1[property] = (np.abs(value-extracted))
+                openDict_2[property] = (np.abs(value-extracted)/(np.abs(extracted)+np.abs(value)))
+                openDict_3[property] = (np.abs(value-extracted)/np.abs(extracted+value))
+
                 normalisedOpenValues[property]=((value-property2rangeMin[property])/property2range[property])
 
             # print "normalisedOpenValues",normalisedOpenValues
             # print "normalisedClosedValues",normalisedClosedValues
+            for property, value in normalisedClosedValues.items():
+                closedAPE_normalised.append(np.abs(value-extractedNormal)/np.abs(extractedNormal))
+                closedAPE_1_normalised.append(np.abs(value-extractedNormal))
+                closedAPE_2_normalised.append(np.abs(value-extractedNormal)/(np.abs(extractedNormal)+np.abs(value)))
+                closedAPE_3_normalised.append(np.abs(value-extractedNormal)/np.abs(extractedNormal+value))
+
+                closedDict_normalised[property] = (np.abs(value-extractedNormal)/np.abs(extractedNormal))
+                closedDict_1_normalised[property] = (np.abs(value-extractedNormal))
+                closedDict_2_normalised[property] = (np.abs(value-extractedNormal)/(np.abs(extractedNormal)+np.abs(value)))
+                closedDict_3_normalised[property] = (np.abs(value-extractedNormal)/np.abs(extractedNormal+value))
+
+            for property, value in normalisedOpenValues.items():
+                openAPE_normalised.append(np.abs(value-extractedNormal)/np.abs(extractedNormal))
+                openAPE_1_normalised.append(np.abs(value-extractedNormal))
+                openAPE_2_normalised.append(np.abs(value-extractedNormal)/(np.abs(extractedNormal)+np.abs(value)))
+                openAPE_3_normalised.append(np.abs(value-extractedNormal)/np.abs(extractedNormal+value))
+
+                openDict_normalised[property] = (np.abs(value-extractedNormal)/np.abs(extractedNormal))
+                openDict_1_normalised[property] = (np.abs(value-extractedNormal))
+                openDict_2_normalised[property] = (np.abs(value-extractedNormal)/(np.abs(extractedNormal)+np.abs(value)))
+                openDict_3_normalised[property] = (np.abs(value-extractedNormal)/np.abs(extractedNormal+value))
 
             # Normalise the input value you see, and the whole value array to create costs
-
 
             #
             # openDict_1 = sorted(openDict_1.items(), key=operator.itemgetter(1))
@@ -201,25 +225,68 @@ def genCostMatrices(inputSentences, costMatrix,openVector, closedVector):
             # print "Open cost array is",sentence['openCostArr']
 
             '''
-            Get the chosen predictions and their minimum values
+            Get sorted versions of each array
             '''
+
+            openAPE_1 = np.sort([value for i,value in enumerate(openAPE_1)])
+            openAPE_2 = np.sort([value for i,value in enumerate(openAPE_2)])
+            openAPE_3 = np.sort([value for i,value in enumerate(openAPE_3)])
+
+            closedAPE_1 = np.sort([value for i,value in enumerate(closedAPE_1)])
+            closedAPE_2 = np.sort([value for i,value in enumerate(closedAPE_2)])
+            closedAPE_3 = np.sort([value for i,value in enumerate(closedAPE_3)])
+
+            openAPE_normalised = np.sort([value for i,value in enumerate(openAPE_normalised)])
+            openAPE_1_normalised = np.sort([value for i,value in enumerate(openAPE_1_normalised)])
+            openAPE_2_normalised = np.sort([value for i,value in enumerate(openAPE_2_normalised)])
+            openAPE_3_normalised = np.sort([value for i,value in enumerate(openAPE_3_normalised)])
+
+            closedAPE_normalised = np.sort([value for i,value in enumerate(closedAPE_normalised)])
+            closedAPE_1_normalised = np.sort([value for i,value in enumerate(closedAPE_1_normalised)])
+            closedAPE_2_normalised = np.sort([value for i,value in enumerate(closedAPE_2_normalised)])
+            closedAPE_3_normalised = np.sort([value for i,value in enumerate(closedAPE_3_normalised)])
+
+            '''
+            Get the chosen predictions and their minimum values - this is for the single array case.
+            '''
+
             openPrediction = sentence['predictedPropertyOpen']
             closedPrediction = sentence['predictedPropertyClosed']
+
+            openPrediction_normalised = min(openDict_normalised, key=openDict_normalised.get)
+            closedPrediction_normalised = min(closedDict_normalised, key=closedDict_normalised.get)
+            openAbsError_normalised = min(openAPE_normalised)
+            closedAbsError_normalised = min(closedAPE_normalised)
 
             openPrediction_1 = min(openDict_1, key=openDict_1.get)
             closedPrediction_1 = min(closedDict_1, key=closedDict_1.get)
             openAbsError1 = min(openDict_1.itervalues())
             closedAbsError1 = min(closedDict_1.itervalues())
 
+            openPrediction_1_normalised = min(openDict_1_normalised, key=openDict_1_normalised.get)
+            closedPrediction_1_normalised = min(closedDict_1_normalised, key=closedDict_1_normalised.get)
+            openAbsError1_normalised = min(openAPE_1_normalised)
+            closedAbsError1_normalised = min(closedAPE_1_normalised)
+
             openPrediction_2 = min(openDict_2, key=openDict_2.get)
             closedPrediction_2 = min(closedDict_2, key=closedDict_2.get)
             openAbsError2 = min(openDict_2.itervalues())
             closedAbsError2 = min(closedDict_2.itervalues())
 
+            openPrediction_2_normalised = min(openDict_2_normalised, key=openDict_2_normalised.get)
+            closedPrediction_2_normalised = min(closedDict_2_normalised, key=closedDict_2_normalised.get)
+            openAbsError2_normalised = min(openAPE_2_normalised)
+            closedAbsError2_normalised = min(closedAPE_2_normalised)
+
             openPrediction_3 = min(openDict_3, key=openDict_3.get)
             closedPrediction_3 = min(closedDict_3, key=closedDict_3.get)
             openAbsError3 = min(openDict_3.itervalues())
             closedAbsError3 = min(closedDict_3.itervalues())
+
+            openPrediction_3_normalised = min(openDict_3_normalised, key=openDict_3_normalised.get)
+            closedPrediction_3_normalised = min(closedDict_3_normalised, key=closedDict_3_normalised.get)
+            openAbsError3_normalised = min(openAPE_3_normalised)
+            closedAbsError3_normalised = min(closedAPE_3_normalised)
 
             '''
             Get the remaining values
@@ -237,7 +304,23 @@ def genCostMatrices(inputSentences, costMatrix,openVector, closedVector):
             closedCostVectorRem_3 = np.sort([value for i,value in enumerate(closedAPE_3) if value is not closedAbsError3])
 
             '''
-            Calculate interesting figures
+            Normalised versions of the remainder vectors
+            '''
+
+            openCostVectorRem_normalised = np.sort([value for i,value in enumerate(openAPE_normalised) if value is not openAbsError_normalised])
+            closedCostVectorRem_normalised = np.sort([value for i,value in enumerate(closedAPE_normalised) if value is not closedAbsError_normalised])
+
+            openCostVectorRem_1_normalised = np.sort([value for i,value in enumerate(openAPE_1_normalised) if value is not openAbsError1_normalised])
+            closedCostVectorRem_1_normalised = np.sort([value for i,value in enumerate(closedAPE_1_normalised) if value is not closedAbsError1_normalised])
+
+            openCostVectorRem_2_normalised = np.sort([value for i,value in enumerate(openAPE_2_normalised) if value is not openAbsError2_normalised])
+            closedCostVectorRem_2_normalised = np.sort([value for i,value in enumerate(closedAPE_2_normalised) if value is not closedAbsError2_normalised])
+
+            openCostVectorRem_3_normalised = np.sort([value for i,value in enumerate(openAPE_3_normalised) if value is not openAbsError3_normalised])
+            closedCostVectorRem_3_normalised = np.sort([value for i,value in enumerate(closedAPE_3_normalised) if value is not closedAbsError3_normalised])
+
+            '''
+            Cost Function APE
             '''
 
             openIQR = float(np.subtract(*np.percentile(openAPE, [75, 25])))
@@ -286,32 +369,612 @@ def genCostMatrices(inputSentences, costMatrix,openVector, closedVector):
             openGapPercent = float(openGap/openRange)
             # print "openGapPercent is ",openGapPercent
 
-            openSkewness = st.stats.skew(openAPE, bias=False)
+            openSkewness = math.exp(st.stats.skew(openAPE, bias=False))
 
-            closedSkewness = st.stats.skew(closedAPE, bias=False)
+            closedSkewness = math.exp(st.stats.skew(closedAPE, bias=False))
 
+            openMAD = meanabsdev(openAPE)
+
+            '''
+            Normalised version
+            '''
+
+            openIQR_normalised = float(np.subtract(*np.percentile(openAPE_normalised, [75, 25])))
+            closedIQR_normalised = float(np.subtract(*np.percentile(closedAPE_normalised, [75, 25])))
+
+            openMedian_normalised = float(np.median(openCostVectorRem_normalised))
+            closedMedian_normalised = float(np.median(closedCostVectorRem_normalised))
+
+            openGap_normalised = float(openAPE_normalised[1]-openAbsError_normalised)
+            # print "Open gap is",openGap
+            closedGap_normalised = float(closedAPE_normalised[1]-closedAbsError_normalised)
+            # print "Closed gap is",closedGap
+
+            closedRange_normalised = float(np.ptp(closedAPE_normalised))
+            # print "Closed range is",closedRange
+
+            openRange_normalised = float(np.ptp(openAPE_normalised))
+            # print "Open range is",openRange
+            if openRange_normalised==float(0):
+                openRange_normalised=1e-10
+            if closedRange_normalised==float(0):
+                closedRange_normalised =1e-10
+
+            # print "Open range is",openRange
+
+            closedPercentArray_normalised = [float(val)/closedRange_normalised for val in closedAPE_normalised]
+            openPercentArray_normalised = [float(val)/openRange_normalised for val in openAPE_normalised]
+
+            # TODO - this is a hyperparameter
+            closedCompetingEntries_normalised = float(sum(float(i) < float(1) for i in closedAPE_normalised))
+
+            # print "Closed competing entries are",closedCompetingEntries
+            openCompetingEntries_normalised = float(sum(float(i) < float(1) for i in openAPE_normalised))
+            # print "openCompetingEntries are",openCompetingEntries
+
+            # TODO - this is a hyperparameter
+            closedCompetingPctEntries_normalised = float(sum(float(i) < float(0.05) for i in closedPercentArray_normalised))
+
+            # print "Closed competing entries are",closedCompetingEntries
+            openCompetingPctEntries_normalised = float(sum(float(i) < float(0.05) for i in openPercentArray_normalised))
+            # print "openCompetingPctEntries are",openCompetingEntries
+
+            closedGapPercent_normalised = float(closedGap_normalised/closedRange_normalised)
+            # print "closedGapPercent is ",closedGapPercent
+
+            openGapPercent_normalised = float(openGap_normalised/openRange_normalised)
+            # print "openGapPercent is ",openGapPercent
+
+            openSkewness_normalised = math.exp(st.stats.skew(openAPE_normalised, bias=False))
+
+            closedSkewness_normalised = math.exp(st.stats.skew(closedAPE_normalised, bias=False))
+
+            '''
+            Cost Function 1
+            '''
+
+            openIQR_1 = float(np.subtract(*np.percentile(openAPE_1, [75, 25])))
+            closedIQR_1 = float(np.subtract(*np.percentile(closedAPE_1, [75, 25])))
+
+            openMedian_1 = float(np.median(openCostVectorRem_1))
+            closedMedian_1 = float(np.median(closedCostVectorRem_1))
+
+            openGap_1 = float(openAPE_1[1]-openAbsError1)
+            # print "Open gap is",openGap
+            closedGap_1 = float(closedAPE_1[1]-closedAbsError1)
+            # print "Closed gap is",closedGap
+
+            closedRange_1 = float(np.ptp(closedAPE_1))
+            # print "Closed range is",closedRange
+
+            openRange_1 = float(np.ptp(openAPE_1))
+            # print "Open range is",openRange
+            if openRange_1==float(0):
+                openRange_1=1e-10
+            if closedRange_1==float(0):
+                closedRange_1 =1e-10
+
+            # print "Open range is",openRange
+
+            closedPercentArray_1 = [float(val)/closedRange_1 for val in closedAPE_1]
+            openPercentArray_1 = [float(val)/openRange_1 for val in openAPE_1]
+
+            # TODO - this is a hyperparameter
+            closedCompetingEntries_1 = float(sum(float(i) < float(1) for i in closedAPE_1))
+
+            # print "Closed competing entries are",closedCompetingEntries
+            openCompetingEntries_1 = float(sum(float(i) < float(1) for i in openAPE_1))
+            # print "openCompetingEntries are",openCompetingEntries
+
+            # TODO - this is a hyperparameter
+            closedCompetingPctEntries_1 = float(sum(float(i) < float(0.05) for i in closedPercentArray_1))
+
+            # print "Closed competing entries are",closedCompetingEntries
+            openCompetingPctEntries_1 = float(sum(float(i) < float(0.05) for i in openPercentArray_1))
+            # print "openCompetingPctEntries are",openCompetingEntries
+
+            closedGapPercent_1 = float(closedGap_1/closedRange_1)
+            # print "closedGapPercent is ",closedGapPercent
+
+            openGapPercent_1 = float(openGap_1/openRange_1)
+            # print "openGapPercent is ",openGapPercent
+
+            openSkewness_1 = math.exp(st.stats.skew(openAPE_1, bias=False))
+
+            closedSkewness_1 = math.exp(st.stats.skew(closedAPE_1, bias=False))
+
+            '''
+            Normalised version
+            '''
+
+            openIQR_1_normalised = float(np.subtract(*np.percentile(openAPE_1_normalised, [75, 25])))
+            closedIQR_1_normalised = float(np.subtract(*np.percentile(closedAPE_1_normalised, [75, 25])))
+
+            openMedian_1_normalised = float(np.median(openCostVectorRem_1_normalised))
+            closedMedian_1_normalised = float(np.median(closedCostVectorRem_1_normalised))
+
+            openGap_1_normalised = float(openAPE_1_normalised[1]-openAbsError1_normalised)
+            # print "Open gap is",openGap
+            closedGap_1_normalised = float(closedAPE_1_normalised[1]-closedAbsError1_normalised)
+            # print "Closed gap is",closedGap
+
+            closedRange_1_normalised = float(np.ptp(closedAPE_1_normalised))
+            # print "Closed range is",closedRange
+
+            openRange_1_normalised = float(np.ptp(openAPE_1_normalised))
+            # print "Open range is",openRange
+            if openRange_1_normalised==float(0):
+                openRange_1_normalised=1e-10
+            if closedRange_1_normalised==float(0):
+                closedRange_1_normalised =1e-10
+
+            # print "Open range is",openRange
+
+            closedPercentArray_1_normalised = [float(val)/closedRange_1_normalised for val in closedAPE_1_normalised]
+            openPercentArray_1_normalised = [float(val)/openRange_1_normalised for val in openAPE_1_normalised]
+
+            # TODO - this is a hyperparameter
+            closedCompetingEntries_1_normalised = float(sum(float(i) < float(1) for i in closedAPE_1_normalised))
+
+            # print "Closed competing entries are",closedCompetingEntries
+            openCompetingEntries_1_normalised = float(sum(float(i) < float(1) for i in openAPE_1_normalised))
+            # print "openCompetingEntries are",openCompetingEntries
+
+            # TODO - this is a hyperparameter
+            closedCompetingPctEntries_1_normalised = float(sum(float(i) < float(0.05) for i in closedPercentArray_1_normalised))
+
+            # print "Closed competing entries are",closedCompetingEntries
+            openCompetingPctEntries_1_normalised = float(sum(float(i) < float(0.05) for i in openPercentArray_1_normalised))
+            # print "openCompetingPctEntries are",openCompetingEntries
+
+            closedGapPercent_1_normalised = float(closedGap_1_normalised/closedRange_1_normalised)
+            # print "closedGapPercent is ",closedGapPercent
+
+            openGapPercent_1_normalised = float(openGap_1_normalised/openRange_1_normalised)
+            # print "openGapPercent is ",openGapPercent
+
+            openSkewness_1_normalised = math.exp(st.stats.skew(openAPE_1_normalised, bias=False))
+
+            closedSkewness_1_normalised = math.exp(st.stats.skew(closedAPE_1_normalised, bias=False))
+
+            '''
+            Cost function 2
+            '''
+
+            openIQR_2 = float(np.subtract(*np.percentile(openAPE_2, [75, 25])))
+            closedIQR_2 = float(np.subtract(*np.percentile(closedAPE_2, [75, 25])))
+
+            openMedian_2 = float(np.median(openCostVectorRem_2))
+            closedMedian_2 = float(np.median(closedCostVectorRem_2))
+
+            openGap_2 = float(openAPE_2[1]-openAbsError2)
+            # print "Open gap is",openGap
+            closedGap_2 = float(closedAPE_2[1]-closedAbsError2)
+            # print "Closed gap is",closedGap
+
+            closedRange_2 = float(np.ptp(closedAPE_2))
+            # print "Closed range is",closedRange
+
+            openRange_2 = float(np.ptp(openAPE_2))
+            # print "Open range is",openRange
+            if openRange_2==float(0):
+                openRange_2=1e-10
+            if closedRange_2==float(0):
+                closedRange_2 =1e-10
+
+            # print "Open range is",openRange
+
+            closedPercentArray_2 = [float(val)/closedRange_2 for val in closedAPE_2]
+            openPercentArray_2 = [float(val)/openRange_2 for val in openAPE_2]
+
+            # TODO - this is a hyperparameter
+            closedCompetingEntries_2 = float(sum(float(i) < float(1) for i in closedAPE_2))
+
+            # print "Closed competing entries are",closedCompetingEntries
+            openCompetingEntries_2 = float(sum(float(i) < float(1) for i in openAPE_2))
+            # print "openCompetingEntries are",openCompetingEntries
+
+            # TODO - this is a hyperparameter
+            closedCompetingPctEntries_2 = float(sum(float(i) < float(0.05) for i in closedPercentArray_2))
+
+            # print "Closed competing entries are",closedCompetingEntries
+            openCompetingPctEntries_2 = float(sum(float(i) < float(0.05) for i in openPercentArray_2))
+            # print "openCompetingPctEntries are",openCompetingEntries
+
+            closedGapPercent_2 = float(closedGap_2/closedRange_2)
+            # print "closedGapPercent is ",closedGapPercent
+
+            openGapPercent_2 = float(openGap_2/openRange_2)
+            # print "openGapPercent is ",openGapPercent
+
+            openSkewness_2 = math.exp(st.stats.skew(openAPE_2, bias=False))
+
+            closedSkewness_2 = math.exp(st.stats.skew(closedAPE_2, bias=False))
+
+            '''
+            Normalised version
+            '''
+
+            openIQR_2_normalised = float(np.subtract(*np.percentile(openAPE_2_normalised, [75, 25])))
+            closedIQR_2_normalised = float(np.subtract(*np.percentile(closedAPE_2_normalised, [75, 25])))
+
+            openMedian_2_normalised = float(np.median(openCostVectorRem_2_normalised))
+            closedMedian_2_normalised = float(np.median(closedCostVectorRem_2_normalised))
+
+            openGap_2_normalised = float(openAPE_2_normalised[1]-openAbsError2_normalised)
+            # print "Open gap is",openGap
+            closedGap_2_normalised = float(closedAPE_2_normalised[1]-closedAbsError2_normalised)
+            # print "Closed gap is",closedGap
+
+            closedRange_2_normalised = float(np.ptp(closedAPE_2_normalised))
+            # print "Closed range is",closedRange
+
+            openRange_2_normalised = float(np.ptp(openAPE_2_normalised))
+            # print "Open range is",openRange
+            if openRange_2_normalised==float(0):
+                openRange_2_normalised=1e-10
+            if closedRange_2_normalised==float(0):
+                closedRange_2_normalised =1e-10
+
+            # print "Open range is",openRange
+
+            closedPercentArray_2_normalised = [float(val)/closedRange_2_normalised for val in closedAPE_2_normalised]
+            openPercentArray_2_normalised = [float(val)/openRange_2_normalised for val in openAPE_2_normalised]
+
+            # TODO - this is a hyperparameter
+            closedCompetingEntries_2_normalised = float(sum(float(i) < float(1) for i in closedAPE_2_normalised))
+
+            # print "Closed competing entries are",closedCompetingEntries
+            openCompetingEntries_2_normalised = float(sum(float(i) < float(1) for i in openAPE_2_normalised))
+            # print "openCompetingEntries are",openCompetingEntries
+
+            # TODO - this is a hyperparameter
+            closedCompetingPctEntries_2_normalised = float(sum(float(i) < float(0.05) for i in closedPercentArray_2_normalised))
+
+            # print "Closed competing entries are",closedCompetingEntries
+            openCompetingPctEntries_2_normalised = float(sum(float(i) < float(0.05) for i in openPercentArray_2_normalised))
+            # print "openCompetingPctEntries are",openCompetingEntries
+
+            closedGapPercent_2_normalised = float(closedGap_2_normalised/closedRange_2_normalised)
+            # print "closedGapPercent is ",closedGapPercent
+
+            openGapPercent_2_normalised = float(openGap_2_normalised/openRange_2_normalised)
+            # print "openGapPercent is ",openGapPercent
+
+            openSkewness_2_normalised = math.exp(st.stats.skew(openAPE_2_normalised, bias=False))
+
+            closedSkewness_2_normalised = math.exp(st.stats.skew(closedAPE_2_normalised, bias=False))
+
+
+            '''
+            Cost function 3
+            '''
+
+            openIQR_3 = float(np.subtract(*np.percentile(openAPE_3, [75, 25])))
+            closedIQR_3 = float(np.subtract(*np.percentile(closedAPE_3, [75, 25])))
+
+            openMedian_3 = float(np.median(openCostVectorRem_3))
+            closedMedian_3 = float(np.median(closedCostVectorRem_3))
+
+            openGap_3 = float(openAPE_3[1]-openAbsError3)
+            # print "Open gap is",openGap
+            closedGap_3 = float(closedAPE_3[1]-closedAbsError3)
+            # print "Closed gap is",closedGap
+
+            closedRange_3 = float(np.ptp(closedAPE_3))
+            # print "Closed range is",closedRange
+
+            openRange_3 = float(np.ptp(openAPE_3))
+            # print "Open range is",openRange
+            if openRange_3==float(0):
+                openRange_3=1e-10
+            if closedRange_3==float(0):
+                closedRange_3 =1e-10
+
+            # print "Open range is",openRange
+
+            closedPercentArray_3 = [float(val)/closedRange_3 for val in closedAPE_3]
+            openPercentArray_3 = [float(val)/openRange_3 for val in openAPE_3]
+
+            # TODO - this is a hyperparameter
+            closedCompetingEntries_3 = float(sum(float(i) < float(1) for i in closedAPE_3))
+
+            # print "Closed competing entries are",closedCompetingEntries
+            openCompetingEntries_3 = float(sum(float(i) < float(1) for i in openAPE_3))
+            # print "openCompetingEntries are",openCompetingEntries
+
+            # TODO - this is a hyperparameter
+            closedCompetingPctEntries_3 = float(sum(float(i) < float(0.05) for i in closedPercentArray_3))
+
+            # print "Closed competing entries are",closedCompetingEntries
+            openCompetingPctEntries_3 = float(sum(float(i) < float(0.05) for i in openPercentArray_3))
+            # print "openCompetingPctEntries are",openCompetingEntries
+
+            closedGapPercent_3 = float(closedGap_3/closedRange_3)
+            # print "closedGapPercent is ",closedGapPercent
+
+            openGapPercent_3 = float(openGap_3/openRange_3)
+            # print "openGapPercent is ",openGapPercent
+
+            openSkewness_3 = math.exp(st.stats.skew(openAPE_3, bias=False))
+
+            closedSkewness_3 = math.exp(st.stats.skew(closedAPE_3, bias=False))
+
+
+            '''
+            Normalised version
+            '''
+
+            openIQR_3_normalised = float(np.subtract(*np.percentile(openAPE_3_normalised, [75, 25])))
+            closedIQR_3_normalised = float(np.subtract(*np.percentile(closedAPE_3_normalised, [75, 25])))
+
+            openMedian_3_normalised = float(np.median(openCostVectorRem_3_normalised))
+            closedMedian_3_normalised = float(np.median(closedCostVectorRem_3_normalised))
+
+            openGap_3_normalised = float(openAPE_3_normalised[1]-openAbsError3_normalised)
+            # print "Open gap is",openGap
+            closedGap_3_normalised = float(closedAPE_3_normalised[1]-closedAbsError3_normalised)
+            # print "Closed gap is",closedGap
+
+            closedRange_3_normalised = float(np.ptp(closedAPE_3_normalised))
+            # print "Closed range is",closedRange
+
+            openRange_3_normalised = float(np.ptp(openAPE_3_normalised))
+            # print "Open range is",openRange
+            if openRange_3_normalised==float(0):
+                openRange_3_normalised=1e-10
+            if closedRange_3_normalised==float(0):
+                closedRange_3_normalised =1e-10
+
+            # print "Open range is",openRange
+
+            closedPercentArray_3_normalised = [float(val)/closedRange_3_normalised for val in closedAPE_3_normalised]
+            openPercentArray_3_normalised = [float(val)/openRange_3_normalised for val in openAPE_3_normalised]
+
+            # TODO - this is a hyperparameter
+            closedCompetingEntries_3_normalised = float(sum(float(i) < float(1) for i in closedAPE_3_normalised))
+
+            # print "Closed competing entries are",closedCompetingEntries
+            openCompetingEntries_3_normalised = float(sum(float(i) < float(1) for i in openAPE_3_normalised))
+            # print "openCompetingEntries are",openCompetingEntries
+
+            # TODO - this is a hyperparameter
+            closedCompetingPctEntries_3_normalised = float(sum(float(i) < float(0.05) for i in closedPercentArray_3_normalised))
+
+            # print "Closed competing entries are",closedCompetingEntries
+            openCompetingPctEntries_3_normalised = float(sum(float(i) < float(0.05) for i in openPercentArray_3_normalised))
+            # print "openCompetingPctEntries are",openCompetingEntries
+
+            closedGapPercent_3_normalised = float(closedGap_3_normalised/closedRange_3_normalised)
+            # print "closedGapPercent is ",closedGapPercent
+
+            openGapPercent_3_normalised = float(openGap_3_normalised/openRange_3_normalised)
+            # print "openGapPercent is ",openGapPercent
+
+            openSkewness_3_normalised = math.exp(st.stats.skew(openAPE_3_normalised, bias=False))
+
+            closedSkewness_3_normalised = math.exp(st.stats.skew(closedAPE_3_normalised, bias=False))
+
+
+            '''
+            Use calculations on the normalised format for the single version, and normalise also
+            '''
 
             for key, data in costMatrix.iteritems():
+                # When there is only one cost per training instance
                 if str(key).startswith("single"):
                     if str(key).split('_')[1]=="open":
                         if str(key).endswith("1"):
                             data['cost_matrix'].append(error)
+                            # Get normalised version and different cost matrices versions of each one, then calculations based on the normalised format
                         if str(key).endswith("2"):
                             data['cost_matrix'].append(error/float(openIQR*(len(openCostVectorRem)+1)))
                         if str(key).endswith("3"):
                             data['cost_matrix'].append(error/float(openMedian*(len(openCostVectorRem)+1)))
                         if str(key).endswith("4"):
+                            data['cost_matrix'].append(error/float(openIQR))
+
+                        if str(key).endswith("5"):
+                            data['cost_matrix'].append(error/float(openMedian))
+
+                        if str(key).endswith("6"):
                             data['cost_matrix'].append(error/np.where(openGap
     >0,openGap, 0e-10))
-                        if str(key).endswith("5"):
+                        if str(key).endswith("7"):
                             data['cost_matrix'].append(error/np.where(openGapPercent
     >0,openGapPercent, 0e-10))
-                        if str(key).endswith("6"):
-                            data['cost_matrix'].append(error*openCompetingEntries)
-                        if str(key).endswith("7"):
-                            data['cost_matrix'].append(error*openCompetingPctEntries)
                         if str(key).endswith("8"):
-                            data['cost_matrix'].append(closedError*openCompetingPctEntries)
+                            data['cost_matrix'].append(error*openCompetingEntries)
+                        if str(key).endswith("9"):
+                            data['cost_matrix'].append(error*openCompetingPctEntries)
+                        if str(key).endswith("10"):
+                            data['cost_matrix'].append(0)
+                        # Do calculations on the normalised versions
+                        if str(key).endswith("11"):
+                            data['cost_matrix'].append(openAbsError_normalised)
+                        if str(key).endswith("12"):
+                            data['cost_matrix'].append(openAbsError_normalised/float(openIQR_normalised*(len(openCostVectorRem_normalised)+1)))
+                        if str(key).endswith("13"):
+                            data['cost_matrix'].append(openAbsError_normalised/float(openMedian_normalised*(len(openCostVectorRem_normalised)+1)))
+                        if str(key).endswith("14"):
+                            data['cost_matrix'].append(openAbsError_normalised/float(openIQR_normalised))
+
+                        if str(key).endswith("15"):
+                            data['cost_matrix'].append(openAbsError_normalised/float(openMedian_normalised))
+
+                        if str(key).endswith("16"):
+                            data['cost_matrix'].append(openAbsError_normalised/np.where(openGap_normalised
+    >0,openGap_normalised, 0e-10))
+                        if str(key).endswith("17"):
+                            data['cost_matrix'].append(openAbsError_normalised/np.where(openGapPercent
+    >0,openGapPercent_normalised, 0e-10))
+                        if str(key).endswith("18"):
+                            data['cost_matrix'].append(openAbsError_normalised*openCompetingEntries_normalised)
+                        if str(key).endswith("19"):
+                            data['cost_matrix'].append(openAbsError_normalised*openCompetingPctEntries_normalised)
+                        if str(key).endswith("20"):
+                            data['cost_matrix'].append(openAbsError1)
+                            # Get normalised version and different cost matrices versions of each one, then calculations based on the normalised format
+                        if str(key).endswith("21"):
+                            data['cost_matrix'].append(openAbsError1/float(openIQR*(len(openCostVectorRem)+1)))
+                        if str(key).endswith("22"):
+                            data['cost_matrix'].append(openAbsError1/float(openMedian*(len(openCostVectorRem)+1)))
+                        if str(key).endswith("23"):
+                            data['cost_matrix'].append(openAbsError1/float(openIQR))
+
+                        if str(key).endswith("24"):
+                            data['cost_matrix'].append(openAbsError1/float(openMedian))
+
+                        if str(key).endswith("25"):
+                            data['cost_matrix'].append(openAbsError1/np.where(openGap
+    >0,openGap, 0e-10))
+                        if str(key).endswith("26"):
+                            data['cost_matrix'].append(openAbsError1/np.where(openGapPercent
+    >0,openGapPercent, 0e-10))
+                        if str(key).endswith("27"):
+                            data['cost_matrix'].append(openAbsError1*openCompetingEntries)
+                        if str(key).endswith("28"):
+                            data['cost_matrix'].append(openAbsError1*openCompetingPctEntries)
+                        if str(key).endswith("29"):
+                            data['cost_matrix'].append(openAbsError1_normalised)
+                        if str(key).endswith("30"):
+                            data['cost_matrix'].append(openAbsError1_normalised/float(openIQR_normalised*(len(openCostVectorRem_normalised)+1)))
+                        if str(key).endswith("31"):
+                            data['cost_matrix'].append(openAbsError1_normalised/float(openMedian_normalised*(len(openCostVectorRem_normalised)+1)))
+                        if str(key).endswith("32"):
+                            data['cost_matrix'].append(openAbsError1_normalised/float(openIQR_normalised))
+
+                        if str(key).endswith("33"):
+                            data['cost_matrix'].append(openAbsError1_normalised/float(openMedian_normalised))
+
+                        if str(key).endswith("34"):
+                            data['cost_matrix'].append(openAbsError1_normalised/np.where(openGap_normalised
+    >0,openGap_normalised, 0e-10))
+                        if str(key).endswith("35"):
+                            data['cost_matrix'].append(openAbsError1_normalised/np.where(openGapPercent
+    >0,openGapPercent_normalised, 0e-10))
+                        if str(key).endswith("36"):
+                            data['cost_matrix'].append(openAbsError1_normalised*openCompetingEntries_normalised)
+                        if str(key).endswith("37"):
+                            data['cost_matrix'].append(openAbsError1_normalised*openCompetingPctEntries_normalised)
+                        if str(key).endswith("38"):
+                            data['cost_matrix'].append(openAbsError2)
+                        if str(key).endswith("39"):
+                            data['cost_matrix'].append(openAbsError2/float(openIQR*(len(openCostVectorRem)+1)))
+                        if str(key).endswith("40"):
+                            data['cost_matrix'].append(openAbsError2/float(openMedian*(len(openCostVectorRem)+1)))
+                        if str(key).endswith("41"):
+                            data['cost_matrix'].append(openAbsError2/float(openIQR))
+                        if str(key).endswith("42"):
+                            data['cost_matrix'].append(openAbsError2/float(openMedian))
+                        if str(key).endswith("43"):
+                            data['cost_matrix'].append(openAbsError2/np.where(openGap
+    >0,openGap, 0e-10))
+                        if str(key).endswith("44"):
+                            data['cost_matrix'].append(openAbsError2/np.where(openGapPercent
+    >0,openGapPercent, 0e-10))
+                        if str(key).endswith("45"):
+                            data['cost_matrix'].append(openAbsError2*openCompetingEntries)
+                        if str(key).endswith("46"):
+                            data['cost_matrix'].append(openAbsError2*openCompetingPctEntries)
+                        if str(key).endswith("47"):
+                            data['cost_matrix'].append(openAbsError2_normalised)
+                        if str(key).endswith("48"):
+                            data['cost_matrix'].append(openAbsError2_normalised/float(openIQR_normalised*(len(openCostVectorRem_normalised)+1)))
+                        if str(key).endswith("49"):
+                            data['cost_matrix'].append(openAbsError2_normalised/float(openMedian_normalised*(len(openCostVectorRem_normalised)+1)))
+                        if str(key).endswith("50"):
+                            data['cost_matrix'].append(openAbsError2_normalised/float(openIQR_normalised))
+
+                        if str(key).endswith("51"):
+                            data['cost_matrix'].append(openAbsError2_normalised/float(openMedian_normalised))
+
+                        if str(key).endswith("52"):
+                            data['cost_matrix'].append(openAbsError2_normalised/np.where(openGap_normalised
+    >0,openGap_normalised, 0e-10))
+                        if str(key).endswith("53"):
+                            data['cost_matrix'].append(openAbsError2_normalised/np.where(openGapPercent
+    >0,openGapPercent_normalised, 0e-10))
+                        if str(key).endswith("54"):
+                            data['cost_matrix'].append(openAbsError2_normalised*openCompetingEntries_normalised)
+                        if str(key).endswith("55"):
+                            data['cost_matrix'].append(openAbsError2_normalised*openCompetingPctEntries_normalised)
+                        if str(key).endswith("56"):
+                            data['cost_matrix'].append(openAbsError3)
+                        if str(key).endswith("57"):
+                            data['cost_matrix'].append(openAbsError3/float(openIQR*(len(openCostVectorRem)+1)))
+                        if str(key).endswith("58"):
+                            data['cost_matrix'].append(openAbsError3/float(openMedian*(len(openCostVectorRem)+1)))
+                        if str(key).endswith("59"):
+                            data['cost_matrix'].append(openAbsError3/float(openIQR))
+                        if str(key).endswith("60"):
+                            data['cost_matrix'].append(openAbsError3/float(openMedian))
+                        if str(key).endswith("61"):
+                            data['cost_matrix'].append(openAbsError3/np.where(openGap
+    >0,openGap, 0e-10))
+                        if str(key).endswith("62"):
+                            data['cost_matrix'].append(openAbsError3/np.where(openGapPercent
+    >0,openGapPercent, 0e-10))
+                        if str(key).endswith("63"):
+                            data['cost_matrix'].append(openAbsError3*openCompetingEntries)
+                        if str(key).endswith("64"):
+                            data['cost_matrix'].append(openAbsError3*openCompetingPctEntries)
+                        if str(key).endswith("65"):
+                            data['cost_matrix'].append(openAbsError3_normalised)
+                        if str(key).endswith("66"):
+                            data['cost_matrix'].append(openAbsError3_normalised/float(openIQR_normalised*(len(openCostVectorRem_normalised)+1)))
+                        if str(key).endswith("67"):
+                            data['cost_matrix'].append(openAbsError3_normalised/float(openMedian_normalised*(len(openCostVectorRem_normalised)+1)))
+                        if str(key).endswith("68"):
+                            data['cost_matrix'].append(openAbsError3_normalised/float(openIQR_normalised))
+
+                        if str(key).endswith("69"):
+                            data['cost_matrix'].append(openAbsError3_normalised/float(openMedian_normalised))
+
+                        if str(key).endswith("70"):
+                            data['cost_matrix'].append(openAbsError3_normalised/np.where(openGap_normalised
+    >0,openGap_normalised, 0e-10))
+                        if str(key).endswith("71"):
+                            data['cost_matrix'].append(openAbsError3_normalised/np.where(openGapPercent
+    >0,openGapPercent_normalised, 0e-10))
+                        if str(key).endswith("72"):
+                            data['cost_matrix'].append(openAbsError3_normalised*openCompetingEntries_normalised)
+                        if str(key).endswith("73"):
+                            data['cost_matrix'].append(openAbsError3_normalised*openCompetingPctEntries_normalised)
+                        # Now we normalise everything row-wise (not the normalised versions)
+                        if str(key).endswith("74"):
+                            data['cost_matrix'].append(error/openRange)
+                        if str(key).endswith("75"):
+                            data['cost_matrix'].append(openAbsError1/openRange_1)
+                        if str(key).endswith("76"):
+                            data['cost_matrix'].append(openAbsError2/openRange_2)
+                        if str(key).endswith("77"):
+                            data['cost_matrix'].append(openAbsError3/openRange_3)
+                        if str(key).endswith("78"):
+                            data['cost_matrix'].append(openAbsError_normalised/openRange_normalised)
+                        if str(key).endswith("79"):
+                            data['cost_matrix'].append(openAbsError1_normalised/openRange_1_normalised)
+                        if str(key).endswith("80"):
+                            data['cost_matrix'].append(openAbsError2_normalised/openRange_2_normalised)
+                        if str(key).endswith("81"):
+                            data['cost_matrix'].append(openAbsError3_normalised/openRange_3_normalised)
+                        # Now multiply everything by the skewness score, as positive skewness
+                        if str(key).endswith("82"):
+                            data['cost_matrix'].append(error*openSkewness)
+                        if str(key).endswith("83"):
+                            data['cost_matrix'].append(openAbsError1*openSkewness_1)
+                        if str(key).endswith("84"):
+                            data['cost_matrix'].append(openAbsError2*openSkewness_2)
+                        if str(key).endswith("85"):
+                            data['cost_matrix'].append(openAbsError3*openSkewness_3)
+                        if str(key).endswith("86"):
+                            data['cost_matrix'].append(openAbsError_normalised*openSkewness_normalised)
+                        if str(key).endswith("87"):
+                            data['cost_matrix'].append(openAbsError1_normalised*openSkewness_1_normalised)
+                        if str(key).endswith("88"):
+                            data['cost_matrix'].append(openAbsError2_normalised*openSkewness_2_normalised)
+                        if str(key).endswith("89"):
+                            data['cost_matrix'].append(openAbsError3_normalised*openSkewness_3_normalised)
                     else:
                         if str(key).endswith("1"):
                             data['cost_matrix'].append(closedError)
@@ -459,6 +1122,15 @@ def genCostMatrices(inputSentences, costMatrix,openVector, closedVector):
     '''
     Normalise everything in different ways
     '''
+
+
+
+
+# values = sum([[item["value"]] + item["openValues"].values()
+#               for item in array], [])
+# v_min, v_max = min(values), max(values)
+# output = [f(v_min, v_max, item) for item in array]
+# print output
 
     # for key, value in costMatrix.iteritems():
     #     print key," array is ", value['cost_matrix'],"\n"
@@ -809,8 +1481,8 @@ if __name__ == "__main__":
     for x in range(1,2):
         cost_matrices["open_cost_{0}".format(x)]={'cost_matrix':[]}
         cost_matrices["closed_cost_{0}".format(x)]={'cost_matrix':[]}
-        # cost_matrices["single_open_cost_{0}".format(x)]=[]
-        # cost_matrices["single_closed_cost_{0}".format(x)]=[]
+        cost_matrices["single_open_cost_{0}".format(x)]={'cost_matrix':[]}
+        cost_matrices["single_closed_cost_{0}".format(x)]={'cost_matrix':[]}
         # cost_matrices["normalised_open_cost_{0}".format(x)]=[]
         # cost_matrices["normalised_closed_cost_{0}".format(x)]=[]
 

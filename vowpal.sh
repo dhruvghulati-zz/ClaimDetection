@@ -7,8 +7,13 @@
 # vw --csoaa_ldf=mc --loss_function=logistic -d data/output/zero/cost_test/closed_cost_1closed_ld.dat -f data/output/zero/cost_test/csoaa_ldf.model --probabilities
 # vw -t -i data/output/zero/cost_test/csoaa_ldf.model -d data/output/zero/cost_test/ldf_closed_test.dat -p data/output/zero/cost_test/probs.predict
 
-vw --csoaa 16 -d data/output/zero/cost_test/closed_cost_1.dat -f data/output/zero/cost_test/csoaa.model
-vw -t -i data/output/zero/cost_test/csoaa.model -d data/output/zero/cost_test/test.dat --raw_predictions data/output/zero/cost_test/closed_cost_1_raw.dat
+vw --csoaa_ldf=mc --loss_function=logistic -d data/output/zero/cost_test/closed_cost_1_words_ld.txt -f data/output/zero/cost_test/csoaa.model
+vw -t -i data/output/zero/cost_test/csoaa.model -d data/output/zero/cost_test/words_ldf_closed_test.txt -p data/output/zero/cost_test/probs_ld_actual.txt
+
+vw --csoaa 16 data/output/zero/cost_test/closed_cost_1_words.txt -f data/output/zero/cost_test/csoaa.model
+vw -t -i data/output/zero/cost_test/csoaa.model data/output/zero/cost_test/words_test.txt -p data/output/zero/cost_test/probs_csoaa.txt
+vw -t -i data/output/zero/cost_test/csoaa.model -d data/output/zero/cost_test/words_test.txt --audit | grep -P '^\d' > data/output/zero/cost_test/scores.txt
+
 
 # for i in $(seq 1 $END); do
 #   # vw --csoaa 24 data/output/zero/cost_test/open_cost_$i.dat -f data/output/zero/cost_test/open_csoaa_$i.model

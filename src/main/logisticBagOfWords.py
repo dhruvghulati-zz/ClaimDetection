@@ -1,3 +1,4 @@
+# coding=utf-8
 '''
 
 This optimises hyperparameters both on probability and on the MAPE threshold and spits out results for:
@@ -245,7 +246,7 @@ if __name__ == "__main__":
     y_true_claim = np.array(test['claim'])
 
     '''
-    Get statistics on the training data
+    Get statistics on the training data in terms of counts
     '''
     # print len(train_data_features), "sets of training features"
     #
@@ -430,16 +431,40 @@ if __name__ == "__main__":
             dict['prediction'] = np.array(test['categorical_mape_label']).tolist()
     # print model_data
 
+    # precision_recall_fscore_support(y_multi_true, dict['prediction'], average=None, labels=[‘pig’, ‘dog’, ‘cat’])
+
+    categorical_data = {}
+
     for model, dict in model_data.iteritems():
         dict['prob_path']=os.path.join(sys.argv[4] + model+'_prob_a.txt')
         np.savetxt(dict['prob_path'], dict['prob_prediction'])
         if any(dict['prediction']):
+            categorical_data[(model,'precision')]=precision_recall_fscore_support(y_multi_true,dict['prediction'],labels=list(set(y_multi_true)),average=None)[0]
+            categorical_data[(model,'recall')]=precision_recall_fscore_support(y_multi_true,dict['prediction'],labels=list(set(y_multi_true)),average=None)[1]
+            categorical_data[(model,'f1')]=precision_recall_fscore_support(y_multi_true,dict['prediction'],labels=list(set(y_multi_true)),average=None)[2]
+            # temp_model = model.split('_')
+            # if "threshold" in temp_model:
+            #     if temp_model[0]=="open":
+            #         print "Precision and recall is",precision_recall_fscore_support(y_multi_true,dict['prediction'],labels=set(y_multi_true))
+            #     else:
+            #         print "Precision and recall is",precision_recall_fscore_support(y_multi_true,dict['prediction'],labels=set(y_multi_true))
+            # else:
+            #     if temp_model[0]=="open":
+            #         print "Precision and recall is",precision_recall_fscore_support(y_multi_true,dict['prediction'],labels=set(y_multi_true))
+            #     else:
+            #         print "Precision and recall is",precision_recall_fscore_support(y_multi_true,dict['prediction'],labels=set(y_multi_true))
             dict['binary_prediction']=[]
             for predict,true in zip(dict['prediction'],y_multi_true):
                 if predict==true:
                     dict['binary_prediction'].append(1)
                 else:
                     dict['binary_prediction'].append(0)
+
+    categorical_data = pd.DataFrame(categorical_data,index=[item.split('/')[3] for item in list(set(y_multi_true))])
+
+    categoricalPath = os.path.join(sys.argv[4] + testSet + '_' + str(threshold) + '_categoricalResults.csv')
+
+    categorical_data.to_csv(path_or_buf=categoricalPath,encoding='utf-8')
 
     # Save the models and results to a JSON file
     with open(sys.argv[6], "wb") as out:
@@ -448,6 +473,13 @@ if __name__ == "__main__":
 
 
     output = {(outerKey, innerKey): values for outerKey, innerDict in model_data.iteritems() for innerKey, values in innerDict.iteritems() if innerKey=='prediction' or innerKey=='binary_prediction'}
+
+    for (outerKey, innerKey),values in output.iteritems():
+        if innerKey=='prediction' and values:
+            print values
+            split_values = np.array([str(item).split('/')[3] for item in values])
+            output[(outerKey, innerKey)] = split_values
+            # output[(outerKey, innerKey)]= [item.split('/')[3] for item in values]
 
     output = pd.DataFrame(output)
 
