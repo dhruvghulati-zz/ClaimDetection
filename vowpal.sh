@@ -1,60 +1,48 @@
 #!/bin/bash
 
-# python src/main/costSensitiveClassifier.py data/output/predictedProperties.json data/output/devLabels.json data/featuresKept.json data/output/cost/
+declare -a threshold=(0.0001 0.0005 0.001 0.0025 0.0050 0.01 0.02 0.05 0.075 0.1 0.15 0.30 0.40 0.50 0.75 1.0);
 
-# END=2
+# 0.0001 0.0005 0.001 0.0025 0.0050 0.01 0.02 0.05 0.075 0.1
 
-# vw --csoaa_ldf=mc --loss_function=logistic -d data/output/zero/cost_test/closed_cost_1closed_ld.dat -f data/output/zero/cost_test/csoaa_ldf.model --probabilities
-# vw -t -i data/output/zero/cost_test/csoaa_ldf.model -d data/output/zero/cost_test/ldf_closed_test.dat -p data/output/zero/cost_test/probs.predict
+declare -a probThreshold=(0.0001 0.001 0.0050 0.01 0.02 0.04 0.05 0.06 0.075 0.1 0.15 0.30 0.40 0.50 0.75 1.0);
 
-vw --csoaa_ldf=mc --loss_function=logistic -d data/output/zero/cost_test/closed_cost_1_words_ld.txt -f data/output/zero/cost_test/csoaa.model
-vw -t -i data/output/zero/cost_test/csoaa.model -d data/output/zero/cost_test/words_ldf_closed_test.txt -p data/output/zero/cost_test/probs_ld_actual.txt
+# 0.0001 0.001 0.0050 0.01 0.02 0.04 0.05 0.06 0.075 0.1 0.15 0.30 0.40 0.50 0.75 1.0
 
-vw --csoaa 16 data/output/zero/cost_test/closed_cost_1_words.txt -f data/output/zero/cost_test/csoaa.model
-vw -t -i data/output/zero/cost_test/csoaa.model data/output/zero/cost_test/words_test.txt -p data/output/zero/cost_test/probs_csoaa.txt
-vw -t -i data/output/zero/cost_test/csoaa.model -d data/output/zero/cost_test/words_test.txt --audit | grep -P '^\d' > data/output/zero/cost_test/scores.txt
+declare -a costThreshold=(0.0001 0.001 0.0050 0.01 0.02 0.04 0.05 0.06 0.075 0.1 0.15 0.30 0.40 0.50 0.75 1.0);
+
+FILES=data/output/zero/arow_test/
+
+for f in ${FILES}*.dat
+do
+    if [[ $f == *"bigrams"* ]]
+    then
+      echo "It's there!";
+    fi
+done
 
 
-# for i in $(seq 1 $END); do
-#   # vw --csoaa 24 data/output/zero/cost_test/open_cost_$i.dat -f data/output/zero/cost_test/open_csoaa_$i.model
-#   # vw -t -i data/output/zero/cost_test/open_csoaa_$i.model data/output/zero/cost_test/test.dat -p data/output/zero/cost_test/open_cost_$i.predict
-#
-#   # vw --csoaa 24 data/output/zero/cost_test/open_cost_$i.dat -f data/output/zero/cost_test/open_cost_$i.model
-#   # vw -t -i data/output/zero/cost_test/open_cost_$i.model data/output/zero/cost_test/test.dat -p data/output/zero/cost_test/open_cost_$i.predict
-#   #
-#   # # vw --csoaa 16 data/output/zero/cost_test/closed_cost_$i.dat -f data/output/zero/cost_test/closed_csoaa_$i.model
-#   # # vw -t -i data/output/zero/cost_test/closed_csoaa_$i.model data/output/zero/cost_test/test.dat -p data/output/zero/cost_test/closed_cost_$i.predict
-#   #
-#   # vw --csoaa 16 data/output/zero/cost_test/closed_cost_$i.dat -f data/output/zero/cost_test/closed_cost_$i.model --link=logistic
-#   #
-#   # vw -t -i data/output/zero/cost_test/closed_cost_$i.model data/output/zero/cost_test/test.dat -p data/output/zero/cost_test/closed_cost_$i.predict
-#
-#   # vw --csoaa_ldf=mc --loss_function=logistic -d data/output/zero/cost_test/closed_cost_1closed_ld.dat -f data/output/zero/cost_test/csoaa_ldf.model --probabilities
-#   # vw -t -i data/output/zero/cost_test/csoaa_ldf.model -d data/output/zero/cost_test/ldf_closed_test.dat -p data/output/zero/cost_test/probs.predict --probabilities
-#
-#   # vw --csoaa 16 data/output/cost/single_open_cost_$i.dat -f data/output/cost/csoaa.model
-#   # vw -t -i data/output/cost/csoaa.model data/output/cost/test.dat -p data/output/cost/single_open_cost_$i.predict
-#   #
-#   # vw --csoaa 16 data/output/cost/single_closed_cost_$i.dat -f data/output/cost/csoaa.model
-#   # vw -t -i data/output/cost/csoaa.model data/output/cost/test.dat -p data/output/cost/single_closed_cost_$i.predict
-# done
+for var in "${threshold[@]}";
+do
+      python src/main/propertyPredictor.py data/freebaseTriples.json data/sentenceMatrixFilteredZero.json data/output/predictedPropertiesZero.json $var data/featuresKept.json
+      python src/main/testFeatures.py data/featuresKept.json data/output/testLabels.json data/output/hyperTestLabels.json $var data/freebaseTriples.json data/output/devLabels.json
+      # Create different files with different thresholds and probability thresholds. We have models that do not care about this cost threshold though.
+      for cost in "${costThreshold[@]}";
+      do
+          python src/main/costSensitiveClassifier.py data/freebaseTriples.json data/output/predictedPropertiesZero.json data/output/devLabels.json data/featuresKept.json data/output/zero/cost_test/ data/output/zero/arow_test/ data/output/zero/cost_test/costMatrices.json $cost
+      done
+      # for f in ${FILES}*.pdf
+      # do
+      #     if [[ $string == *"My long"* ]]
+      #     then
+      #       echo "It's there!";
+      #     fi
+      # done
+
+
+
+      # Now do the predictions with all these files outputting them somewhere, including some precision F1 scores
+      # Now make different probability predictions with the same input files and output these also somewhere in a tuning version for precision recall
+
+done
 
 # python src/main/costPredictions.py data/output/cost/models.txt data/output/cost/open_label_mapping.txt data/output/cost/closed_label_mapping.txt data/output/devLabels.json data/output/cost/ data/output/cost/summaryEvaluationCost.csv
-
-# vw --csoaa 24 data/output/cost/open_cost_1.dat -f data/output/cost/csoaa.model
-# vw -t -i data/output/cost/csoaa.model data/output/cost/test.dat -p data/output/cost/open_cost_1.predict
-#
-# # vw --csoaa 24 data/output/cost/open_cost_2.dat -f data/output/cost/csoaa.model
-# # vw -t -i data/output/cost/csoaa.model data/output/cost/open_cost_2.dat -p data/output/cost/open_cost_2.predict
-# #
-# # vw --csoaa 24 data/output/cost/open_cost_3.dat -f data/output/cost/csoaa.model
-# # vw -t -i data/output/cost/csoaa.model data/output/cost/open_cost_3.dat -p data/output/cost/open_cost_3.predict
-#
-# vw --csoaa 16 data/output/cost/closed_cost_1.dat -f data/output/cost/csoaa.model
-# vw -t -i data/output/cost/csoaa.model data/output/cost/test.dat -p data/output/cost/closed_cost_1.predict
-
-# vw --csoaa 16 data/output/cost/closed_cost_2.dat -f data/output/cost/csoaa.model
-# vw -t -i data/output/cost/csoaa.model data/output/cost/closed_cost_3.dat -p data/output/cost/closed_cost_2.predict
-#
-# vw --csoaa 16 data/output/cost/closed_cost_3.dat -f data/output/cost/csoaa.model
-# vw -t -i data/output/cost/csoaa.model data/output/cost/closed_cost_3.dat -p data/output/cost/closed_cost_3.predict

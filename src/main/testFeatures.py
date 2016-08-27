@@ -115,7 +115,7 @@ def testSentenceLabels(dict_list):
         temp_properties.append(property.split("/")[3])
         # TODO - Command line issue as I had hard coded the location of these files ../../, in command line remove
     print "Temporary properties are",len(temp_properties)
-    for subdir, dirs, files in os.walk('../../data/labeled_claims'):
+    for subdir, dirs, files in os.walk('data/labeled_claims'):
         # This is causing errors
         for file in files:
             # print os.path.join(subdir, file)
@@ -156,7 +156,7 @@ def testSentenceLabels(dict_list):
                         # print "bigrams are",bigrams
                         sentence['depPath'] = bigrams
                         # TODO - on command line this should change to remove ../..
-                        if filepath=="../../data/labeled_claims/internet_users_percent_population_claims.xlsx" or filepath=="../../data/labeled_claims/population_growth_rate_claims.xlsx":
+                        if filepath=="data/labeled_claims/internet_users_percent_population_claims.xlsx" or filepath=="data/labeled_claims/population_growth_rate_claims.xlsx":
                             # print filepath
                             # print "False"
                             extracted_country = s.cell(row_index, country_index).value

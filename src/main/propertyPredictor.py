@@ -115,11 +115,9 @@ def update(sentence):
         # print "Closed error is",closedError
         # print "Open error is",error
 
-        res.update({'predictedPropertyClosed': closedMatch, 'closedMeanAbsError': closedError,
-                    'closedCostArr':closedCostArr,'closedCostDict':closedDict,'closedValues':closedKBDict
+        res.update({'predictedPropertyClosed': closedMatch, 'closedMeanAbsError': closedError,'closedCostDict':closedDict,'closedValues':closedKBDict
                     })
-        res.update({'predictedPropertyOpen': matchedProperty, 'meanAbsError': error,
-                    'openCostArr':openCostArr,'openCostDict':openDict,'openValues':country
+        res.update({'predictedPropertyOpen': matchedProperty, 'meanAbsError': error,'openCostDict':openDict,'openValues':country
                     })
         if error<threshold:
             res.update({'predictedPropertyOpenThreshold': matchedProperty})

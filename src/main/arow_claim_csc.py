@@ -15,6 +15,8 @@ if __name__ == "__main__":
     # open_cost_1.predict
     predictFile = sys.argv[3]
 
+    probPredictFile = sys.argv[4]
+
     train_data = [arow.train_instance_from_svm_input(line) for line in trainDataLines]
     test_data = [arow.test_instance_from_svm_input(line) for line in testDataLines]
     cl = arow.AROW()
@@ -24,11 +26,12 @@ if __name__ == "__main__":
     cl.train(train_data)
     # cl.probGeneration()
     # ,probabilities=False
-    predictions = [cl.predict(d, verbose=True).label2score for d in test_data]
+    predictions = [cl.predict(d, verbose=True).label for d in test_data]
+    predictionScores = [cl.predict(d, verbose=True).label2score for d in test_data]
 
     # print predictions
-    for i,prediction in enumerate(predictions):
-        print prediction
+    # for i,prediction in enumerate(predictions):
+    #     print prediction
     # print [cl.predict(d, verbose=True).featureValueWeights for d in test_data]
     # print [d.costs for d in test_data]
 
@@ -39,3 +42,11 @@ if __name__ == "__main__":
         f.write(line+"\n")
 
     f.close()
+
+    fp = open(probPredictFile, 'w')
+
+    for i, prediction in enumerate(predictionScores):
+        line = str(int(prediction)) + " " + str(i)
+        fp.write(line+"\n")
+
+    fp.close()
