@@ -28,6 +28,18 @@ Negative_Naive_Baseline
 
 Previous_Model
 
+Parameters
+--------------
+
+data/output/predictedPropertiesZero.json
+data/output/fullTestLabels.json
+data/featuresKept.json
+data/output/zero/test/
+data/output/zero/test/summaryEvaluation.csv
+
+python src/main/naiveBaselines.py data/output/predictedPropertiesZero.json data/output/fullTestLabels.json data/featuresKept.json data/output/zero/test/ data/output/zero/test/summaryEvaluation.csv
+
+
 '''
 
 import re
@@ -44,17 +56,16 @@ from sklearn.metrics import precision_recall_fscore_support
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.linear_model import LogisticRegression
 import os
-from itertools import repeat
 import copy
+
+from sklearn.pipeline import Pipeline
 
 rng = np.random.RandomState(101)
 
-#
 
-'''
-TODO - Cross validation
-TODO - per property F1
-'''
+def find_ngrams(input_list, n):
+    return zip(*[input_list[i:] for i in range(n)])
+
 
 def sentence_to_words(sentence, remove_stopwords=False):
     letters_only = re.sub('[^a-zA-Z| LOCATION_SLOT | NUMBER_SLOT]', " ", sentence)
@@ -71,22 +82,38 @@ def sentence_to_words(sentence, remove_stopwords=False):
 def training_features(inputSentences):
     global vectorizer
     # [:15000]
-    for i, sentence in enumerate(inputSentences[:15000]):
+    for i, sentence in enumerate(inputSentences):
         # Dont train if the sentence contains a random region we don't care about
         # and sentence['predictedRegion'] in properties
         if sentence:
-            # Regardless of anything else, an open evaluation includes all sentences
-            train_wordlist.append(" ".join(sentence_to_words(sentence['parsedSentence'], True)))
-            train_property_labels.append(sentence['predictedPropertyOpen'])
-            # Closed evaluation only include certain training sentences
-            closed_train_property_labels.append(sentence['predictedPropertyClosed'])
-    # print "These are the clean words in the training sentences: ", train_wordlist
-    # print "These are the labels in the training sentences: ", train_labels
-    print "Creating the bag of words...\n"
-    train_data_features = vectorizer.fit_transform(train_wordlist)
-    train_data_features = train_data_features.toarray()
+            words = (" ").join(sentence_to_words(sentence['parsedSentence'], True))
+            word_list = sentence_to_words(sentence['parsedSentence'], True)
+            bigrams = ""
+            if "depPath" in sentence.keys():
+                bigrams = [("+").join(bigram).encode('utf-8') for bigram in sentence['depPath']]
+                bigrams = (' ').join(map(str, bigrams))
+            bigrams = ('').join(bigrams)
+            train_bigram_list.append(bigrams)
 
-    return train_data_features
+            train_wordbigram_list.append(words + " " + bigrams.decode("utf-8"))
+            train_wordlist.append(words)
+
+            wordgrams = find_ngrams(word_list, 2)
+            for i, grams in enumerate(wordgrams):
+                wordgrams[i] = '+'.join(grams)
+            wordgrams = (" ").join(wordgrams)
+            train_gramlist.append(wordgrams)
+
+            train_property_labels.append(sentence['predictedPropertyOpen'])
+            closed_train_property_labels.append(sentence['predictedPropertyClosed'])
+            # print "These are the clean words in the training sentences: ", train_wordlist
+            # print "These are the labels in the training sentences: ", train_labels
+            # This is for vectorizing
+            # print "Creating the bag of words...\n"
+            # train_data_features = vectorizer.fit_transform(train_wordlist)
+            # train_data_features = train_data_features.toarray()
+            #
+            # return train_data_features
 
 
 def test_features(testSentences):
@@ -94,15 +121,27 @@ def test_features(testSentences):
 
     for sentence in testSentences:
         if sentence['parsedSentence'] != {} and sentence['mape_label'] != {}:
-            clean_test_sentences.append(" ".join(sentence_to_words(sentence['parsedSentence'], True)))
+            words = " ".join(sentence_to_words(sentence['parsedSentence'], True))
+            word_list = sentence_to_words(sentence['parsedSentence'], True)
+            wordgrams = find_ngrams(word_list, 2)
+
+            for i, grams in enumerate(wordgrams):
+                wordgrams[i] = '+'.join(grams)
+            wordgrams = (" ").join(wordgrams)
+            test_gramlist.append(wordgrams)
+            clean_test_sentences.append(words)
             test_property_labels.append(sentence['property'])
+            bigrams = sentence['depPath']
+            test_bigram_list.append(bigrams)
+            test_wordbigram_list.append(words + " " + bigrams.decode("utf-8"))
 
-    # print "These are the clean words in the test sentences: ", clean_test_sentences
-    # print "These are the mape labels in the test sentences: ", binary_test_labels
-    test_data_features = vectorizer.transform(clean_test_sentences)
-    test_data_features = test_data_features.toarray()
+            # print "These are the clean words in the test sentences: ", clean_test_sentences
+            # print "These are the mape labels in the test sentences: ", binary_test_labels
+            # test_data_features = vectorizer.transform(clean_test_sentences)
+            # test_data_features = test_data_features.toarray()
+            #
+            # return test_data_features
 
-    return test_data_features
 
 # Find index of the true label for the sentence, and if that same index for that sentence is one, return the classifier class, else no region
 
@@ -114,13 +153,15 @@ if __name__ == "__main__":
         pattern2regions = json.loads(trainingSentences.read())
 
     print "We have ", len(pattern2regions), " training sentences."
-    # We load in the allowable features and also no_region
-    with open(sys.argv[3]) as featuresKept:
-        properties = json.loads(featuresKept.read())
-    properties.append("no_region")
 
     with open(sys.argv[2]) as testSentences:
         testSentences = json.loads(testSentences.read())
+
+
+     # We load in the allowable features and also no_region
+    with open(sys.argv[3]) as featuresKept:
+        properties = json.loads(featuresKept.read())
+    properties.append("no_region")
 
     finalTestSentences = []
 
@@ -131,60 +172,93 @@ if __name__ == "__main__":
             finalTestSentences.append(sentence)
 
     train_wordlist = []
-    closed_train_wordlist = []
     test_wordlist = []
-    binary_test_labels = []
+
+    train_gramlist = []
+    test_gramlist = []
+
+    train_bigram_list = []
+    test_bigram_list = []
+
+    train_wordbigram_list = []
+    test_wordbigram_list = []
+
     train_property_labels = []
     closed_train_property_labels = []
+
     test_property_labels = []
 
-    vectorizer = CountVectorizer(analyzer="word", \
-                                 tokenizer=None, \
-                                 preprocessor=None, \
-                                 stop_words=None, \
-                                 max_features=5000)
+    # vectorizer = CountVectorizer(analyzer="word", \
+    #                              tokenizer=None, \
+    #                              preprocessor=None, \
+    #                              stop_words=None, \
+    #                              max_features=5000)
 
     print "Getting all the words in the training sentences...\n"
 
     # This both sorts out the features and the training labels
-    train_data_features = training_features(pattern2regions)
+    training_features(pattern2regions)
 
-    print len(train_data_features), "sets of training features"
+    # print str(os.path.splitext(sys.argv[2])[0]).split("/")
+    # TODO This was an issue on command line - change to [2] if on command line, 8 if not
+    testSet = str(os.path.splitext(sys.argv[2])[0]).split("/")[2]
 
-    multi_logit = LogisticRegression(fit_intercept=True, class_weight='balanced', multi_class='multinomial',
-                                     solver='newton-cg')
-
-    closed_multi_logit = LogisticRegression(fit_intercept=True, class_weight='balanced', multi_class='multinomial',
-                                            solver='newton-cg')
+    print len(train_wordlist), "sets of training features"
 
     # Fit the logistic classifiers to the training set, using the bag of words as features
     print "There are ", len(set(train_property_labels)), "open training classes"
     print "There are ", len(set(closed_train_property_labels)), "closed training properties"
 
-    print "Fitting the open multinomial logistic regression model without MAPE threshold...\n"
-    open_multi_logit = multi_logit.fit(train_data_features, train_property_labels)
-
-    print "Fitting the closed multinomial logistic regression model without MAPE threshold...\n"
-    closed_multi_logit = closed_multi_logit.fit(train_data_features, closed_train_property_labels)
-
     # Create an empty list and append the clean reviews one by one
     clean_test_sentences = []
 
-    print "Cleaning and parsing the test set ...\n"
-
     print "Get a bag of words for the test set, and convert to a numpy array\n"
 
-    test_data_features = test_features(finalTestSentences)
+    test_features(finalTestSentences)
 
-    print len(test_data_features), "sets of test features"
+    print len(clean_test_sentences), "sets of test features"
 
-    print test_data_features
-    #
-    print "Predicting open multinomial test labels without MAPE threshold...\n"
-    y_multi_logit_result_open = np.array(open_multi_logit.predict(test_data_features))
+    text_clf = Pipeline([('vect', CountVectorizer(analyzer="word",tokenizer=None,preprocessor=None,stop_words=None,max_features=5000)),
+                          ('clf',LogisticRegression(solver='newton-cg',class_weight='balanced', multi_class='multinomial',fit_intercept=True),
+                          )])
 
-    print "Predicting closed multinomial test labels w/ threshold...\n"
-    y_multi_logit_result_closed = np.array(closed_multi_logit.predict(test_data_features))
+    trainingLabels = len(train_wordlist)
+
+
+    print "Fitting the open multinomial BoW logistic regression model...\n"
+    open_multi_logit_words = text_clf.fit(train_wordlist, train_property_labels)
+
+    print "Fitting the closed multinomial BoW logistic regression model...\n"
+    closed_multi_logit_words = copy.deepcopy(text_clf).fit(train_wordlist, closed_train_property_labels)
+
+    print "Fitting the open multinomial bigram logistic regression model...\n"
+    open_multi_logit_bigrams = copy.deepcopy(text_clf).fit(train_gramlist, train_property_labels)
+
+    print "Fitting the closed multinomial bigram logistic regression model...\n"
+    closed_multi_logit_bigrams = copy.deepcopy(text_clf).fit(train_gramlist, closed_train_property_labels)
+
+    print "Fitting the open multinomial dependency bigram logistic regression model...\n"
+    open_multi_logit_depgrams = copy.deepcopy(text_clf).fit(train_bigram_list, train_property_labels)
+
+    print "Fitting the closed multinomial dependency bigram logistic regression model...\n"
+    closed_multi_logit_depgrams = copy.deepcopy(text_clf).fit(train_bigram_list, closed_train_property_labels)
+
+    print "Fitting the open multinomial word+bigram logistic regression model...\n"
+    open_multi_logit_wordgrams = copy.deepcopy(text_clf).fit(train_wordbigram_list, train_property_labels)
+
+    print "Fitting the closed multinomial word+bigram logistic regression model...\n"
+    closed_multi_logit_wordgrams = copy.deepcopy(text_clf).fit(train_wordbigram_list, closed_train_property_labels)
+
+    models = ['open_multi_logit_words', 'closed_multi_logit_words',
+              'open_multi_logit_bigrams', 'closed_multi_logit_bigrams',
+              'open_multi_logit_wordgrams', 'closed_multi_logit_wordgrams',
+              'open_multi_logit_depgrams', 'closed_multi_logit_depgrams',
+              'distant_supervision_open', 'distant_supervision_closed', 'random_binary_label',
+              'random_categorical_label', 'closed_random_categorical_label', 'test_data_mape_label', 'claim_label',
+              'andreas_property_label', 'andreas_prediction', 'negative_baseline',
+              ]
+
+    model_data = {model: {} for model in models}
 
     # Load in the test data
     test = pd.DataFrame(finalTestSentences)
@@ -193,161 +267,150 @@ if __name__ == "__main__":
     y_multi_true = np.array(test['property'])
     y_true_claim = np.array(test['claim'])
 
-    y_multi_logit_result_open_binary = []
-    y_multi_logit_result_closed_binary = []
-
     # This is Andreas model for distant supervision
     y_andreas_mape = test['mape_label']
 
     y_distant_sv_property_open = test['predictedPropertyOpen']
     y_distant_sv_property_closed = test['predictedPropertyClosed']
 
-    y_open_distant_sv_to_binary = []
-    y_closed_distant_sv_to_binary = []
-
     # These are the random baselines
     unique_train_labels = set(train_property_labels)
-    # print "Open property labels",unique_train_labels
-    # unique_train_labels_threshold = copy.deepcopy(unique_train_labels)
-    # unique_train_labels_threshold = unique_train_labels_threshold.add('no_region')
     unique_train_labels_threshold = unique_train_labels.union(['no_region'])
-    # print "Open property label with threshold",unique_train_labels_threshold
-
     closed_unique_train_labels = set(closed_train_property_labels)
-    # print type(closed_unique_train_labels)
-    # closed_unique_train_labels_threshold = copy.deepcopy(closed_unique_train_labels)
-    # closed_unique_train_labels_threshold = closed_unique_train_labels_threshold.add('no_region')
     closed_unique_train_labels_threshold = closed_unique_train_labels.union(['no_region'])
 
-    # print "Closed property label threshold",type(closed_unique_train_labels_threshold)
+    openTrainingClasses = len(set(train_property_labels))
+    closedTrainingClasses = len(set(closed_train_property_labels))
 
-    # Categorical random baseline
     categorical_random = rng.choice(list(unique_train_labels), len(finalTestSentences))
     categorical_random_threshold = rng.choice(list(unique_train_labels_threshold), len(finalTestSentences))
     closed_categorical_random = rng.choice(list(closed_unique_train_labels), len(finalTestSentences))
-    closed_categorical_random_threshold = rng.choice(list(closed_unique_train_labels_threshold),len(finalTestSentences))
-    # print "Categorical random is ", categorical_random
-    y_cat_random_to_binary = []
-    y_cat_random_to_binary_threshold = []
-    y_closed_random_to_binary = []
-    y_closedCat_random_to_binary_threshold = []
+    closed_categorical_random_threshold = rng.choice(list(closed_unique_train_labels_threshold),
+                                                     len(finalTestSentences))
+
     # Random 0 and 1
     random_result = rng.randint(2, size=len(finalTestSentences))
     positive_result = np.ones(len(finalTestSentences))
     negative_result = np.zeros(len(finalTestSentences))
-    y_randpred = random_result
-    y_pospred = positive_result
-    y_negpred = negative_result
-    #
-    catLabels = [y_distant_sv_property_open, y_distant_sv_property_closed,
-                 y_multi_logit_result_open,
-                 y_multi_logit_result_closed,
-                 categorical_random,
-                 categorical_random_threshold,
-                 closed_categorical_random,
-                 closed_categorical_random_threshold
-                 ]
-    #
-    binaryLabels = [
-        y_open_distant_sv_to_binary, y_closed_distant_sv_to_binary,
-        y_multi_logit_result_open_binary,
-        y_multi_logit_result_closed_binary,
-        y_cat_random_to_binary, y_cat_random_to_binary_threshold, y_closed_random_to_binary,
-        y_closedCat_random_to_binary_threshold
-    ]
-    #
-    trueLabels = []
-    trueLabels.extend(repeat(y_multi_true, len(binaryLabels)))
-    #
-    #
-    # Convert the categorical predictions to binary based on if matching property
-    def binaryConversion(trueLabel, evalLabel, binaryLabel):
-        for true, eval in zip(trueLabel, evalLabel):
-            # print true,eval, binary
-            if eval == true:
-                binaryLabel.append(1)
-            else:
-                binaryLabel.append(0)
 
-                # print x,y,z
-    #
-    #
-    for trueLabels, predictionLabels, emptyArray in zip(trueLabels, catLabels, binaryLabels):
-        binaryConversion(trueLabels, predictionLabels, emptyArray)
+    # print model_data
 
-    output = pd.DataFrame(data=dict(parsed_sentence=test['parsedSentence'],
-                                    features=clean_test_sentences,
+    for model, dict in model_data.iteritems():
+        dict['prediction'] = []
 
-                                    open_property_prediction=y_multi_logit_result_open,
-                                    open_property_prediction_toBinary=y_multi_logit_result_open_binary,
-                                    closed_property_prediction=y_multi_logit_result_closed,
-                                    closed_property_prediction_toBinary=y_multi_logit_result_closed_binary,
+        if model == 'open_multi_logit_words':
+            dict['prediction'] = np.array(open_multi_logit_words.predict(clean_test_sentences)).tolist()
+        if model == 'closed_multi_logit_words':
+            dict['prediction'] = np.array(closed_multi_logit_words.predict(clean_test_sentences)).tolist()
+        if model == 'open_multi_logit_bigrams':
+            dict['prediction'] = np.array(open_multi_logit_bigrams.predict(clean_test_sentences)).tolist()
+        if model == 'closed_multi_logit_bigrams':
+            dict['prediction'] = np.array(closed_multi_logit_bigrams.predict(clean_test_sentences)).tolist()
+        if model == 'open_multi_logit_depgrams':
+            dict['prediction'] = np.array(open_multi_logit_depgrams.predict(clean_test_sentences)).tolist()
+        if model == 'closed_multi_logit_depgrams':
+            dict['prediction'] = np.array(closed_multi_logit_depgrams.predict(clean_test_sentences)).tolist()
+        if model == 'open_multi_logit_wordgrams':
+            dict['prediction'] = np.array(open_multi_logit_wordgrams.predict(clean_test_sentences)).tolist()
+        if model == 'closed_multi_logit_wordgrams':
+            dict['prediction'] = np.array(closed_multi_logit_wordgrams.predict(clean_test_sentences)).tolist()
+        if model == 'distant_supervision_open':
+            dict['prediction'] = y_distant_sv_property_open.tolist()
+        if model == 'distant_supervision_closed':
+            dict['prediction'] = y_distant_sv_property_closed.tolist()
+        if model == 'random_binary_label':
+            dict['binary_prediction'] = random_result.tolist()
+        if model == 'random_categorical_label':
+            dict['prediction'] = categorical_random.tolist()
+        if model == 'closed_random_categorical_label':
+            dict['prediction'] = closed_categorical_random.tolist()
+        if model == 'test_data_mape_label':
+            dict['binary_prediction'] = test['mape_label'].tolist()
+        if model == 'claim_label':
+            dict['binary_prediction'] = y_true_claim.tolist()
+        if model == 'andreas_property_label':
+            dict['prediction'] = test['property'].tolist()
+        if model == 'andreas_prediction':
+            dict['binary_prediction'] = positive_result.tolist()
+        if model == 'negative_baseline':
+            dict['binary_prediction'] = negative_result.tolist()
 
-                                    distant_supervision_open=y_distant_sv_property_open,
-                                    distant_supervision_closed=y_distant_sv_property_closed,
-                                    distant_supervision_open_toBinary=y_open_distant_sv_to_binary,
-                                    distant_supervision_closed_toBinary=y_closed_distant_sv_to_binary,
+    categorical_data = {}
 
-                                    random_binary_label=random_result,
-                                    random_categorical_label=categorical_random,
-                                    random_categorical_label_toBinary=y_cat_random_to_binary,
-                                    random_categorical_label_threshold=categorical_random_threshold,
-                                    random_categorical_label_threshold_toBinary=y_cat_random_to_binary_threshold,
-                                    closed_random_categorical_label=closed_categorical_random,
-                                    closed_random_categorical_label_toBinary=y_closed_random_to_binary,
-                                    closed_random_categorical_label_threshold=closed_categorical_random_threshold,
-                                    closed_random_categorical_label_toBinary_threshold=y_closedCat_random_to_binary_threshold,
+    for model, dict in model_data.iteritems():
+        if any(dict['prediction']):
+            categorical_data[(model, 'precision')] = \
+            precision_recall_fscore_support(y_multi_true, dict['prediction'], labels=list(set(y_multi_true)),
+                                            average=None)[0]
+            categorical_data[(model, 'recall')] = \
+            precision_recall_fscore_support(y_multi_true, dict['prediction'], labels=list(set(y_multi_true)),
+                                            average=None)[1]
+            categorical_data[(model, 'f1')] = \
+            precision_recall_fscore_support(y_multi_true, dict['prediction'], labels=list(set(y_multi_true)),
+                                            average=None)[2]
+            dict['binary_prediction'] = []
+            for predict, true in zip(dict['prediction'], y_multi_true):
+                if predict == true:
+                    dict['binary_prediction'].append(1)
+                else:
+                    dict['binary_prediction'].append(0)
 
-                                    test_data_mape_label=test['mape_label'],
-                                    claim_label=y_true_claim,
-                                    test_data_property_label=test['property'],
-                                    andreas_prediction=y_pospred,
-                                    negative_baseline=y_negpred))
+    categorical_data = pd.DataFrame(categorical_data, index=[item.split('/')[3] for item in list(set(y_multi_true))])
 
-    # print str(os.path.splitext(sys.argv[2])[0]).split("/")
-    # TODO This was an issue on command line - change to [2] if on command line, 8 if not
-    testSet = str(os.path.splitext(sys.argv[2])[0]).split("/")[2]
+    categoricalPath = os.path.join(sys.argv[4] + testSet + '_categoricalResults.csv')
 
-    resultPath = os.path.join(sys.argv[4] + testSet + '_mainRegressionResult.csv')
+    categorical_data.to_csv(path_or_buf=categoricalPath, encoding='utf-8')
 
-    output.to_csv(path_or_buf=resultPath, encoding='utf-8', index=False, cols=[
-        'parsed_sentence',
-        'features',
-        'open_property_prediction',
-        'open_property_prediction_toBinary',
-        'closed_property_prediction',
-        'closed_property_prediction_toBinary',
+    output = {(outerKey, innerKey): values for outerKey, innerDict in model_data.iteritems() for innerKey, values in
+              innerDict.iteritems() if innerKey == 'prediction' or innerKey == 'binary_prediction'}
 
-        'distant_supervision_open',
-        'distant_supervision_closed',
-        'distant_supervision_open_toBinary',
-        'distant_supervision_closed_toBinary',
+    for (outerKey, innerKey), values in output.iteritems():
+        if innerKey == 'prediction' and values:
+            split_values = np.array([str(item).split('/')[3] if item!="no_region" else item for item in values])
+            output[(outerKey, innerKey)] = split_values
+        if innerKey == 'prediction' and not values:
+            output[(outerKey, innerKey)] = np.array(["no_categorical_value" for x in range(len(finalTestSentences))])
 
-        'random_binary_label',
-        'random_categorical_label',
-        'random_categorical_label_toBinary',
-        'random_categorical_label_threshold',
-        'random_categorical_label_threshold_toBinary',
-        'closed_random_categorical_label',
-        'closed_random_categorical_label_toBinary',
-        'closed_random_categorical_label_threshold',
-        'closed_random_categorical_label_toBinary_threshold',
+    output = pd.DataFrame(output)
 
-        'test_data_mape_label',
-        'claim_label',
-        'andreas_property_label',
-        'andreas_prediction',
-        'negative_baseline',
-    ])
+    clean_test_sentences = np.array(clean_test_sentences)
+    parsed_sentences = np.array(test['parsedSentence'])
+    test_bigram_list = np.array(test_bigram_list)
+    test_gramlist = np.array(test_gramlist)
+    test_wordbigram_list = np.array(test_wordbigram_list)
+    threshold_array = np.array(["no_threshold"] * len(clean_test_sentences))
 
-    # TODO - need to create a per property chart
+    data = {('global', 'features'): test_wordbigram_list,
+            ('global', 'parsed_sentence'): parsed_sentences,
+            ('global', 'depgrams'): test_bigram_list,
+            ('global', 'bigrams'): test_gramlist,
+            ('global', 'wordgrams'): test_wordbigram_list,
+            ('global', 'threshold'): threshold_array,
+            }
 
-    # Now we write our precision F1 etc to an Excel file
+    DF = pd.DataFrame(data)
+
+    output = pd.concat([output, DF], axis=1)
+
+    resultPath = os.path.join(sys.argv[4] + testSet + '_regressionResult.csv')
+
+    output.to_csv(path_or_buf=resultPath, encoding='utf-8')
+
     summaryDF = pd.DataFrame(columns=('precision', 'recall', 'f1', 'accuracy', 'evaluation set'))
 
 
     def evaluation(trueLabels, evalLabels, test_set):
+        # ,probThreshold
         global summaryDF
+        global trainingLabels
+        global positiveOpenTrainingLabels
+        global negativeOpenTrainingLabels
+        global positiveClosedTrainingLabels
+        global negativeClosedTrainingLabels
+        global openTrainingClasses
+        global openTrainingClassesThreshold
+        global closedTrainingClasses
+        global closedTrainingClassesThreshold
 
         precision = precision_score(trueLabels, evalLabels)
         recall = recall_score(trueLabels, evalLabels)
@@ -358,7 +421,18 @@ if __name__ == "__main__":
                 'recall': [recall],
                 'f1': [f1],
                 'accuracy': [accuracy],
-                'evaluation set': [test_set]
+                'evaluation set': [test_set],
+                'threshold': ["no_mape_threshold"],
+                'probThreshold': ["no_probability_threshold"],
+                'trainingLabels': [trainingLabels],
+                'positiveOpenLabels': [""],
+                'negativeOpenLabels': [""],
+                'positiveClosedLabels': [""],
+                'negativeClosedLabels': [""],
+                'openTrainingClasses': [openTrainingClasses],
+                'openTrainingClassesThreshold': [""],
+                'closedTrainingClasses': [closedTrainingClasses],
+                'closedTrainingClassesThreshold': [""]
                 }
 
         DF = pd.DataFrame(data)
@@ -366,50 +440,16 @@ if __name__ == "__main__":
         summaryDF = pd.concat([summaryDF, DF])
 
 
-    results = [y_randpred,
-               y_cat_random_to_binary,
-               y_cat_random_to_binary_threshold,
-               y_closed_random_to_binary,
-               y_closedCat_random_to_binary_threshold,
-               y_pospred,
-               y_negpred,
-               y_open_distant_sv_to_binary,
-               y_closed_distant_sv_to_binary,
-               y_multi_logit_result_open_binary,
-               y_multi_logit_result_closed_binary,
-               ]
-    #
+    for model, dict in model_data.iteritems():
+        evaluation(y_true_claim, dict['binary_prediction'], testSet)
 
-    for result in results:
-        evaluation(y_true_claim, result, testSet)
+    columns = list(model_data.keys())
 
-    columns = list(['Binary_Random_Baseline',
-                    'Open_Categorical_Random_Baseline',
-                    'Open_Categorical_Random Baseline_w_Threshold',
-                    'Closed_Categorical_Random Baseline',
-                    'Closed_Categorical_Random Baseline_w_Threshold',
-                    'Previous_Model',
-                    'Negative_Naive_Baseline',
-                    'Open_Property_Distant_Supervision_Model',
-                    'Closed_Property_Distant_Supervision_Model',
-                    'Open_Property_Bag_of_Words_Multinomial_Logistic_Regression_w_Binary_Evaluation',
-                    'Closed_Property_Bag_of_Words_Multinomial_Logistic_Regression_w_Binary_Evaluation',
-                    ])
-
-    # summaryDF.set_index(['A','B'])
     summaryDF.index = columns
-
-    print summaryDF
-    #
-    # precisionF1Path = os.path.join(sys.argv[4] + "test/" + testSet + '_' + str(threshold) + '_summaryEval.csv')
-    # summaryDF.to_csv(path_or_buf=precisionF1Path, encoding='utf-8')
 
     try:
         if os.stat(sys.argv[5]).st_size > 0:
-            # df_csv = pd.read_csv(sys.argv[5],encoding='utf-8',engine='python')
-            # summaryDF = pd.concat([df_csv,summaryDF],axis=1,ignore_index=True)
             with open(sys.argv[5], 'a') as f:
-                # Need to empty file contents now
                 summaryDF.to_csv(path_or_buf=f, encoding='utf-8', mode='a', header=False)
                 f.close()
         else:

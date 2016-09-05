@@ -1,20 +1,7 @@
 import numpy as np
 import math
 from scipy.stats.mstats import zscore
-
-
-# for model,array in actualarray.items():
-#     print array['cost_matrix']
-#
-# values = sum([[item["value"]] + item["openValues"].values()
-#               for item in array], [])
-#
-# print values
-# v_min, v_max = min(values), max(values)
-# output = [f(v_min, v_max, item) for item in array]
-# print output
-
-# TODO - need to create a hyperparameter for the actual normalised indices for the sigmoid
+from scipy.special import expit
 
 array = [
     {
@@ -43,17 +30,6 @@ array = [
     }
 ]
 
-
-# def normalize(v0, v1, t):
-#     if v1-v0==0:
-#         return float(1)
-#     else:
-#         return float(t - v0) / float(v1 - v0)
-
-
-# def f(v0, v1, values):
-#     return [normalize(v0, v1, item) for item in values]
-
 actualarray = {
     'open_cost_1':{
         'cost_matrix': [
@@ -65,7 +41,7 @@ actualarray = {
     'open_cost_2':{
         'cost_matrix': [
             {'a': 123,'b': 1312,'c': 1231},
-            {'a': 1011,'b': 1911,'c':911},
+            {'a': 0.005,'b': 0.0543,'c':911},
             {'a': 1433,'b': 19829,'c': 1132},
         ]
     }
@@ -75,69 +51,39 @@ def apply_normalizations(costs):
     """Add a 'normalised_matrix' next to each 'cost_matrix' in the values of costs"""
 
     # TODO - make this have parameters that can be adjusted
-    def sigmoid(v):
-        return 1 / (1 + np.exp(-v))
+    def sigmoid(b,m,v):
+        return expit(b + m*v)*2 - 1
+        # ((expit(b+m*v) / (1 + expit(b+m*v)))*2)-1
 
-    def min_max(lst):
-        values = [v for v in lst if v is not None]
-        return min(values), max(values)
-
-    def sum_reg(a,lst):
-        values = [a*v for v in lst if v is not None]
-        return sum(values)
-
-    def sum_exp(a,lst):
-        values_exp = []
-        for v in lst:
-            if v is not None:
-                try:
-                    values_exp.append(math.exp(a*v))
-                except OverflowError:
-                    values_exp.append(float(1e10))
-        return sum(values_exp)
-
-    def sum_sq(a,lst):
-        values_squared = [(a*v)**2 for v in lst if v is not None]
-        return sum(values_squared)
-
-    def normalize(v, least, most):
-        return 1.0 if least == most else float(v - least) / (most - least)
-
-    def normalize_sums(v, sum):
-        return float(v) / sum
-
-    def normalize_dicts_local(lst):
-        spans = [min_max(dic.values()) for dic in lst]
-        return [{key: normalize(val,*span) for key,val in dic.iteritems()} for dic,span in zip(lst,spans)]
-
-    def normalize_dicts_local_sum(lst):
-        sums = [sum_reg(1,dic.values()) for dic in lst]
-        return [{key: normalize_sums(val,tempsum) for key,val in dic.iteritems()} for dic,tempsum in zip(lst,sums)]
-
-    def normalize_dicts_local_exp(lst):
-        sums_exp = [sum_exp(1,dic.values()) for dic in lst]
-        return [{key: normalize_sums(val,tempsum) for key,val in dic.iteritems()} for dic,tempsum in zip(lst,sums_exp)]
-
-    def normalize_dicts_local_sq(lst):
-        sums_sq = [sum_sq(1,dic.values()) for dic in lst]
-        return [{key: normalize_sums(val,tempsum) for key,val in dic.iteritems()} for dic,tempsum in zip(lst,sums_sq)]
-
-    def normalize_dicts_local_sigmoid(lst):
-        return [{key: sigmoid(val) for key,val in dic.iteritems()} for dic in lst]
+    def normalize_dicts_local_sigmoid(bias, slope,lst):
+        return [{key: sigmoid(bias, slope,val) for key,val in dic.iteritems()} for dic in lst]
 
 
     for name, value in costs.items():
-        if int((name.split("_")[-1]))>1:
-            value['normalised_matrix'] = normalize_dicts_local(value['cost_matrix'])
-            value['normalised_matrix_sum'] = normalize_dicts_local_sum(value['cost_matrix'])
-            value['normalised_matrix_sumSquared'] = normalize_dicts_local_sq(value['cost_matrix'])
-            value['normalised_matrix_sumExp'] = normalize_dicts_local_exp(value['cost_matrix'])
-            value['normalised_matrix_sigmoid'] = normalize_dicts_local_sigmoid(value['cost_matrix'])
+        value['normalised_matrix_sigmoid'] = normalize_dicts_local_sigmoid(2,0.5,value['cost_matrix'])
 
 
 apply_normalizations(actualarray)
 
 print actualarray
+
+
+# def sigmoid(b,m,v):
+#     return expit(b + m*v)*2 - 1
+#     # ((expit(b+m*v) / (1 + expit(b+m*v)))*2)-1
+#
+# def normalize_dicts_local_sigmoid(bias, slope,lst):
+#     return [{key: sigmoid(bias, slope,val) for key,val in dic.iteritems()} for dic in lst]
+#
+#
+# for name, value in actualarray.items():
+#     for i,array in enumerate(value['cost_matrix']):
+#         for key, value in array.items():
+#             print key
+        # value['normalised_matrix_sigmoid'] = normalize_dicts_local_sigmoid(0,1,value['cost_matrix'])
+
+
+# print actualarray
 
 
 # dict_values= {}

@@ -1,8 +1,35 @@
+'''
+This is a pipeline to produce the analyses we use in the thesis.
+
+- The number of HTML files, the number of unique patterns extracted, the unique patterns, the number of location-value pairs before and after filtering.
+- The number of training sentences extracted, from how many overall sentences as a ratio. The number of sentences we take as training.
+- The statistics for the test sets.
+- Analysis of the vocabulary after vectorization - the most common counts?
+- Assess the property coverage in the test set and the training set.
+- Comparison of the value distribution and their counts in training and test
+- Comparison of the country distribution and their counts in training and test
+- Comparison of the value distribution and their counts in training and KB
+- Comparison of the country distribution and their counts in training and KB
+- Text analysis - the % of the vocabulary covered by certain words and bigrams in training set.
+
+/Users/dhruv/Documents/university/ClaimDetection/data/freebaseTriples.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/sentenceRegionValue.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/sentenceSlotsFiltered.json
+/Users/dhruv/Documents/university/ClaimDetection/data/predictedPropertiesZero.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/fullTestLabels.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/cleanFullLabels.json
+/Users/dhruv/Documents/university/ClaimDetection/data/sentenceMatrixFilteredZero.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/uniqueSentenceLabels.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/mainMatrixTrain.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/mainMatrixTrain.json_sentences.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/zero/data_analysis/
+
+'''
+
 import re
 from nltk.corpus import stopwords  # Import the stop word list
 import json
 import sys
-
 from sklearn import preprocessing
 from sklearn.feature_extraction.text import CountVectorizer
 from nltk.stem.porter import PorterStemmer
@@ -10,10 +37,15 @@ import string
 import nltk
 import numpy as np
 from scipy import stats
-import os
+import os, os.path
 from numpy import histogram
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import plot,ion,show
+
+def numberFiles(directory):
+    length = len([name for name in os.listdir(directory) if os.path.isfile(os.path.join(directory, name))])
+    print "Length is ",length
+    return length
 
 # normalize all words in a text by stripping out punctuation and whitespace
 def text_normalizer(inputSentences):
@@ -204,55 +236,112 @@ if __name__ == "__main__":
     # training data
     # load the sentence file for training
 
+    '''
+    Load in all the values
+    /Users/dhruv/Documents/university/ClaimDetection/data/freebaseTriples.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/sentenceRegionValue.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/sentenceSlotsFiltered.json
+/Users/dhruv/Documents/university/ClaimDetection/data/predictedPropertiesZero.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/fullTestLabels.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/cleanFullLabels.json
+/Users/dhruv/Documents/university/ClaimDetection/data/sentenceMatrixFilteredZero.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/uniqueSentenceLabels.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/mainMatrixFiltered.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/zero/data_analysis/
+/Users/dhruv/Documents/university/ClaimDetection/data/output/theMatrixExtend120TokenFiltered_2_2_0.1_0.5_fixed2.json
+
+    '''
+
+    # Load the KB
     kbValues = np.array(loadMatrix(sys.argv[1]))
 
-    with open(sys.argv[2]) as trainingSentences:
-        pattern2regions = json.loads(trainingSentences.read())
+    # Load the unfiltered sentences from extraction
+    with open(sys.argv[2]) as rawSentences:
+        rawSentences = json.loads(rawSentences.read())
 
-    print "We have ", len(pattern2regions), " training sentences."
-    # We load in the allowable features and also no_region
-    with open(sys.argv[3]) as featuresKept:
-        properties = json.loads(featuresKept.read())
-    properties.append("no_region")
+    # Load the unfiltered sentences for labelling
+    with open(sys.argv[3]) as rawLabelSentences:
+        rawLabelSentences = json.loads(rawLabelSentences.read())
 
-    with open(sys.argv[4]) as testSentences:
-        testSentences = json.loads(testSentences.read())
+    # Load the training set
+    with open(sys.argv[4]) as trainingSentences:
+        trainingSentences = json.loads(trainingSentences.read())
 
-    finalTestSentences = []
+     # Load the test set from Andreas
+    with open(sys.argv[5]) as oldTestSentences:
+        oldTestSentences = json.loads(oldTestSentences.read())
 
-    for sentence in testSentences:
-        if sentence['parsedSentence'] != {} and sentence['mape_label'] != {} and sentence['mape'] != {} and sentence[
-            'property'] != {} and sentence['property'] in properties:
-            # print sentence['property']
-            finalTestSentences.append(sentence)
+    # Load the full clean test frozenset
+    with open(sys.argv[6]) as newTestSentences:
+        newTestSentences = json.loads(newTestSentences.read())
 
+    # Load the filtered sentences from which the training sentences obtained
+    with open(sys.argv[7]) as filteredSentences:
+        filteredSentences = json.loads(filteredSentences.read())
+
+    # Load the unique sentence labels
+    with open(sys.argv[8]) as filteredLabelSentences:
+        filteredLabelSentences = json.loads(filteredLabelSentences.read())
+
+    # Load the post-filtering Andreas patterns
+    with open(sys.argv[9]) as newPatterns:
+        newPatterns = json.loads(newPatterns.read())
+
+    # Store the figures directory
+    figures = sys.argv[10]
+
+     # Load the old Andreas patterns
+    with open(sys.argv[11]) as oldPatterns:
+        oldPatterns = json.loads(oldPatterns.read())
+
+    '''
+    Here are the global features
+    '''
     train_wordlist = []
-    closed_train_wordlist = []
     test_wordlist = []
+
+    train_gramlist = []
+    test_gramlist = []
+
+    train_bigram_list = []
+    test_bigram_list = []
+
+    train_wordbigram_list = []
+    test_wordbigram_list = []
+
+    '''
+    Here are the global labels
+    '''
+
     train_property_labels = []
     train_property_labels_threshold = []
     closed_train_property_labels = []
     closed_train_property_labels_threshold = []
+
+    train_property_labels_depgrams = []
+    train_property_labels_threshold_depgrams = []
+    closed_train_property_labels_depgrams = []
+    closed_train_property_labels_threshold_depgrams = []
+
     test_property_labels = []
+    test_property_labels_depgrams = []
 
-    trainingValues = []
+    '''
+    Now vectorize the features and create labels
+    '''
 
-    vectorizer = CountVectorizer(analyzer="word", \
-                                 tokenizer=None, \
-                                 preprocessor=None, \
-                                 stop_words=None, \
-                                 max_features=5000)
+    vectorizer = CountVectorizer(analyzer="word",tokenizer=None,preprocessor=None,stop_words=None, token_pattern="[\S]+",max_features=5000)
 
     print "Getting all the words in the training sentences...\n"
 
-    # This both sorts out the features and the training labels
-
-    pattern2regions=pattern2regions[:15000]
-
-    for dict in pattern2regions:
-        trainingValues.append(dict['location-value-pair'].values())
-
-    trainingValues = np.array(trainingValues).flatten()
+    # # This both sorts out the features and the training labels
+    #
+    # pattern2regions=pattern2regions[:15000]
+    #
+    # for dict in pattern2regions:
+    #     trainingValues.append(dict['location-value-pair'].values())
+    #
+    # trainingValues = np.array(trainingValues).flatten()
 
     # bins=np.logspace(0.1, 1.0, 50)
     # plt.hist(kbValues,bins=10)  # plt.hist passes it's arguments to np.histogram
@@ -271,66 +360,66 @@ if __name__ == "__main__":
     # trainingValues = preprocessing.scale(trainingValues, axis=0, with_mean=True, with_std=True, copy=True)
     # kbValues = preprocessing.scale(kbValues, axis=0, with_mean=True, with_std=True, copy=True)
 
-    print min(kbValues),max(kbValues)
-
-    print min(trainingValues),max(trainingValues)
-
-    plt.hist(kbValues,alpha=0.5,label='KB Values')  # plt.hist passes it's arguments to np.histogram
-    ion()
-    # plt.gca().set_xscale("log")
-    plt.hist(trainingValues,alpha=0.5,label='Training Values')
-    plt.title("Histogram of Values")
-    plt.legend(loc='upper right')
-    plt.savefig(os.path.join(sys.argv[5],'valuecomp.png'))
-
-    train_data_features = training_features(pattern2regions)
-
-    word_list = text_normalizer(pattern2regions)
-
-    word_count = wordcounter(pattern2regions)
-
-    print "Words per sentence is on average",word_count/len(pattern2regions),"\n"
-
-    word_hist = word_histogram(pattern2regions)
-
-    # print "Word histogram is ",word_hist
-
-    top_twenty(pattern2regions)
-
-    word_frequency, word_percent = word_frequencies(pattern2regions,0.95)
-
-    print "Number of words accounting for threshold is ",word_frequency
-
-    print 'Total % of vocab accounting for threshold is ', word_percent
-
-    # stems_list = []
+    # print min(kbValues),max(kbValues)
     #
-    # for i, sentence in enumerate(pattern2regions):
-    #     stems = tokenize(sentence['parsedSentence'])
-    #     print "Stems are ",stems
-    #     stems_list.append(stems)
-
-
-    print "There are ",word_count,"words in the bag of words training sentences"
-
-    print len(train_data_features), "sets of training features"
-
-    trainingLabels = len(train_data_features)
-    positiveOpenTrainingLabels = len(train_property_labels_threshold) - train_property_labels_threshold.count(
-        "no_region")
-    negativeOpenTrainingLabels = train_property_labels_threshold.count("no_region")
-    positiveClosedTrainingLabels = len(closed_train_property_labels_threshold) - closed_train_property_labels_threshold.count(
-        "no_region")
-    negativeClosedTrainingLabels = closed_train_property_labels_threshold.count(
-        "no_region")
-
-    # Create an empty list and append the clean reviews one by one
-    clean_test_sentences = []
-
-    print "Cleaning and parsing the test set ...\n"
-
-    print "Get a bag of words for the test set, and convert to a numpy array\n"
-
-    test_data_features = test_features(finalTestSentences)
-
-    print len(test_data_features), "sets of test features"
+    # print min(trainingValues),max(trainingValues)
+    #
+    # plt.hist(kbValues,alpha=0.5,label='KB Values')  # plt.hist passes it's arguments to np.histogram
+    # ion()
+    # # plt.gca().set_xscale("log")
+    # plt.hist(trainingValues,alpha=0.5,label='Training Values')
+    # plt.title("Histogram of Values")
+    # plt.legend(loc='upper right')
+    # plt.savefig(os.path.join(sys.argv[5],'valuecomp.png'))
+    #
+    # train_data_features = training_features(pattern2regions)
+    #
+    # word_list = text_normalizer(pattern2regions)
+    #
+    # word_count = wordcounter(pattern2regions)
+    #
+    # print "Words per sentence is on average",word_count/len(pattern2regions),"\n"
+    #
+    # word_hist = word_histogram(pattern2regions)
+    #
+    # # print "Word histogram is ",word_hist
+    #
+    # top_twenty(pattern2regions)
+    #
+    # word_frequency, word_percent = word_frequencies(pattern2regions,0.95)
+    #
+    # print "Number of words accounting for threshold is ",word_frequency
+    #
+    # print 'Total % of vocab accounting for threshold is ', word_percent
+    #
+    # # stems_list = []
+    # #
+    # # for i, sentence in enumerate(pattern2regions):
+    # #     stems = tokenize(sentence['parsedSentence'])
+    # #     print "Stems are ",stems
+    # #     stems_list.append(stems)
+    #
+    #
+    # print "There are ",word_count,"words in the bag of words training sentences"
+    #
+    # print len(train_data_features), "sets of training features"
+    #
+    # trainingLabels = len(train_data_features)
+    # positiveOpenTrainingLabels = len(train_property_labels_threshold) - train_property_labels_threshold.count(
+    #     "no_region")
+    # negativeOpenTrainingLabels = train_property_labels_threshold.count("no_region")
+    # positiveClosedTrainingLabels = len(closed_train_property_labels_threshold) - closed_train_property_labels_threshold.count(
+    #     "no_region")
+    # negativeClosedTrainingLabels = closed_train_property_labels_threshold.count(
+    #     "no_region")
+    #
+    # # Create an empty list and append the clean reviews one by one
+    # clean_test_sentences = []
+    #
+    # print "Cleaning and parsing the test set ...\n"
+    #
+    # print "Get a bag of words for the test set, and convert to a numpy array\n"
+    #
+    # test_data_features = test_features(finalTestSentences)
+    #
+    # print len(test_data_features), "sets of test features"

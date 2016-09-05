@@ -1,7 +1,11 @@
-# coding=utf-8
 '''
 
 This optimises hyperparameters both on probability and on the MAPE threshold and spits out results for:
+
+- APE threshold versions of the predictors
+- The probability prediction outputs for all predictors which can be reused.
+
+python src/main/logisticBagOfWords.py data/output/predictedPropertiesZero.json data/output/fullTestLabels.json data/featuresKept.json data/output/zero/test data/output/zero/test/summaryEvaluation.csv
 
 '''
 
@@ -27,57 +31,44 @@ from sklearn.pipeline import Pipeline
 
 rng = np.random.RandomState(101)
 
-#
-# python src/main/trainingFeatures.py data/output/predictedProperties.json data/output/hyperTestLabels.json data/regressionResult.json
-
-'''TODO -
-    Cross validation
-    Precision, recall, F1 for each region
-    Are we training on too many positive instances (no region)?
-'''
-
-
 # Balance my training data
-def balanced_subsample(x, y, subsample_size=1.0):
-    class_xs = []
-    min_elems = None
-
-    for yi in np.unique(y):
-        elems = x[(y == yi)]
-        class_xs.append((yi, elems))
-        if min_elems == None or elems.shape[0] < min_elems:
-            min_elems = elems.shape[0]
-
-    use_elems = min_elems
-    if subsample_size < 1:
-        use_elems = int(min_elems * subsample_size)
-
-    xs = []
-    ys = []
-
-    for ci, this_xs in class_xs:
-        if len(this_xs) > use_elems:
-            rng.shuffle(this_xs)
-
-        x_ = this_xs[:use_elems]
-        y_ = np.empty(use_elems)
-        y_.fill(ci)
-
-        xs.append(x_)
-        ys.append(y_)
-
-    xs = np.concatenate(xs)
-    ys = np.concatenate(ys)
-
-    return xs, ys
+# def balanced_subsample(x, y, subsample_size=1.0):
+#     class_xs = []
+#     min_elems = None
+#
+#     for yi in np.unique(y):
+#         elems = x[(y == yi)]
+#         class_xs.append((yi, elems))
+#         if min_elems == None or elems.shape[0] < min_elems:
+#             min_elems = elems.shape[0]
+#
+#     use_elems = min_elems
+#     if subsample_size < 1:
+#         use_elems = int(min_elems * subsample_size)
+#
+#     xs = []
+#     ys = []
+#
+#     for ci, this_xs in class_xs:
+#         if len(this_xs) > use_elems:
+#             rng.shuffle(this_xs)
+#
+#         x_ = this_xs[:use_elems]
+#         y_ = np.empty(use_elems)
+#         y_.fill(ci)
+#
+#         xs.append(x_)
+#         ys.append(y_)
+#
+#     xs = np.concatenate(xs)
+#     ys = np.concatenate(ys)
+#
+#     return xs, ys
 
 
 def sentence_to_words(sentence, remove_stopwords=False):
     letters_only = re.sub('[^a-zA-Z| LOCATION_SLOT | NUMBER_SLOT]', " ", sentence)
-    # [x.strip() for x in re.findall('\s*(\w+|\W+)', line)]
     words = letters_only.lower().split()
-
-    # In Python, searching a set is much faster than searching a list, so convert the stop words to a set
     if remove_stopwords:
         stops = set(stopwords.words("english"))
         words = [w for w in words if not w in stops]
@@ -89,24 +80,15 @@ def find_ngrams(input_list, n):
 
 def training_features(inputSentences):
     global vectorizer
-    # [:15000]
-    for i, sentence in enumerate(inputSentences[:15000]):
-        # Dont train if the sentence contains a random region we don't care about
-        # and sentence['predictedRegion'] in properties
+    for i, sentence in enumerate(inputSentences):
         if sentence:
-            # print "Sentence is",sentence
-            # Regardless of anything else, an open evaluation includes all sentences
             words = (" ").join(sentence_to_words(sentence['parsedSentence'], True))
             word_list = sentence_to_words(sentence['parsedSentence'], True)
-            # print "words are", words
             bigrams = ""
             if "depPath" in sentence.keys():
                 bigrams = [("+").join(bigram).encode('utf-8') for bigram in sentence['depPath']]
                 bigrams = (' ').join(map(str, bigrams))
-                # print "Bigrams are",bigrams
-                # print "Wordgrams are",words+bigrams.decode("utf-8")
             bigrams = ('').join(bigrams)
-            # print "Bigrams are",bigrams
             train_bigram_list.append(bigrams)
 
             train_wordbigram_list.append(words + " " + bigrams.decode("utf-8"))
@@ -140,7 +122,6 @@ def test_features(testSentences):
             clean_test_sentences.append(words)
             test_property_labels.append(sentence['property'])
             bigrams = sentence['depPath']
-            # print "Test Bigrams are",bigrams
             test_bigram_list.append(bigrams)
             test_wordbigram_list.append(words + " " + bigrams.decode("utf-8"))
 
@@ -155,13 +136,14 @@ if __name__ == "__main__":
         pattern2regions = json.loads(trainingSentences.read())
 
     print "We have ", len(pattern2regions), " training sentences."
+
+    with open(sys.argv[2]) as testSentences:
+        testSentences = json.loads(testSentences.read())
+
     # We load in the allowable features and also no_region
     with open(sys.argv[3]) as featuresKept:
         properties = json.loads(featuresKept.read())
     properties.append("no_region")
-
-    with open(sys.argv[2]) as testSentences:
-        testSentences = json.loads(testSentences.read())
 
     finalTestSentences = []
 
@@ -192,20 +174,14 @@ if __name__ == "__main__":
     closed_train_property_labels = []
     closed_train_property_labels_threshold = []
 
-    train_property_labels_depgrams = []
-    train_property_labels_threshold_depgrams = []
-    closed_train_property_labels_depgrams = []
-    closed_train_property_labels_threshold_depgrams = []
-
     test_property_labels = []
-    test_property_labels_depgrams = []
 
     '''
     Define the pipeline
     '''
-
-    text_clf = Pipeline([('vect', CountVectorizer(analyzer="word",tokenizer=None,preprocessor=None,stop_words=None,max_features=5000)),
-                          ('tfidf', TfidfTransformer(use_idf=True,norm='l2',sublinear_tf=True)),
+    # ('vect', CountVectorizer(analyzer="word",tokenizer=None,preprocessor=None,stop_words=None,max_features=5000)),
+    #                       ('tfidf', TfidfTransformer(use_idf=True,norm='l2',sublinear_tf=True)),
+    text_clf = Pipeline([('vect', CountVectorizer(analyzer="word",token_pattern="[\S]+",tokenizer=None,preprocessor=None,stop_words=None,max_features=5000)),('tfidf', TfidfTransformer(use_idf=True,norm='l2',sublinear_tf=True)),
                           ('clf',LogisticRegression(solver='newton-cg',class_weight='balanced', multi_class='multinomial',fit_intercept=True),
                           )])
 
@@ -229,7 +205,7 @@ if __name__ == "__main__":
 
 
     # TODO This was an issue on command line - change to [2] if on command line. Should be 8 if testing.
-    testSet = str(os.path.splitext(sys.argv[2])[0]).split("/")[8]
+    testSet = str(os.path.splitext(sys.argv[2])[0]).split("/")[2]
 
     test['testSet'] = np.array([testSet for x in range(len(test['property']))])
 
@@ -259,16 +235,21 @@ if __name__ == "__main__":
         "no_region")
     negativeClosedTrainingLabels = closed_train_property_labels_threshold.count(
         "no_region")
-    #
-    # print "There are ", len(train_property_labels_threshold) - train_property_labels_threshold.count(
-    #     "no_region"), "positive open mape threshold labels"
-    # print "There are ", train_property_labels_threshold.count("no_region"), "negative open mape threshold labels"
-    # print "There are ", len(closed_train_property_labels_threshold) - closed_train_property_labels_threshold.count(
-    #     "no_region"), "positive closed mape threshold labels"
-    # print "There are ", closed_train_property_labels_threshold.count(
-    #     "no_region"), "negative closed mape threshold labels\n"
-    #
-    #
+
+    print "There are ", len(train_property_labels_threshold) - train_property_labels_threshold.count(
+        "no_region"), "positive open mape threshold labels"
+    print "There are ", train_property_labels_threshold.count("no_region"), "negative open mape threshold labels"
+    print "There are ", len(closed_train_property_labels_threshold) - closed_train_property_labels_threshold.count(
+        "no_region"), "positive closed mape threshold labels"
+    print "There are ", closed_train_property_labels_threshold.count(
+        "no_region"), "negative closed mape threshold labels\n"
+
+    # These are the random baselines
+    unique_train_labels = set(train_property_labels)
+    unique_train_labels_threshold = set(train_property_labels_threshold)
+    closed_unique_train_labels = set(closed_train_property_labels)
+    closed_unique_train_labels_threshold = set(closed_train_property_labels_threshold)
+
     openTrainingClasses = len(set(train_property_labels))
     openTrainingClassesThreshold = len(set(train_property_labels_threshold))
     closedTrainingClasses = len(set(closed_train_property_labels))
@@ -351,7 +332,7 @@ if __name__ == "__main__":
     multi_logit_categories = np.array(closed_multi_logit_threshold_words.classes_)
     category_path = os.path.join(sys.argv[4] + '/closedthreshold_categories.txt')
     np.savetxt(category_path, multi_logit_categories, fmt='%s')
-
+    #
     '''
 
     This is where the predictors start
@@ -362,8 +343,13 @@ if __name__ == "__main__":
               'open_multi_logit_bigrams', 'open_multi_logit_threshold_bigrams', 'closed_multi_logit_bigrams', 'closed_multi_logit_threshold_bigrams',
               'open_multi_logit_wordgrams', 'open_multi_logit_threshold_wordgrams', 'closed_multi_logit_wordgrams', 'closed_multi_logit_threshold_wordgrams',
               'open_multi_logit_depgrams', 'open_multi_logit_threshold_depgrams', 'closed_multi_logit_depgrams', 'closed_multi_logit_threshold_depgrams',
-              'open_distant_sv_property_threshold', 'closed_distant_sv_property_threshold','andreas_threshold'
+              'open_distant_sv_property_threshold', 'closed_distant_sv_property_threshold','andreas_threshold','categorical_random_threshold',
+              'closed_categorical_random_threshold','test_data_mape_label', 'claim_label'
               ]
+
+
+    categorical_random_threshold = rng.choice(list(unique_train_labels_threshold), len(finalTestSentences))
+    closed_categorical_random_threshold = rng.choice(list(closed_unique_train_labels_threshold),len(finalTestSentences))
 
     model_data = {model:{} for model in models}
 
@@ -429,30 +415,32 @@ if __name__ == "__main__":
             dict['prediction'] = np.array(test['predictedPropertyClosedThreshold']).tolist()
         if model=='andreas_threshold':
             dict['prediction'] = np.array(test['categorical_mape_label']).tolist()
+        if model=='categorical_random_threshold':
+            dict['prediction'] = categorical_random_threshold.tolist()
+        if model=='closed_categorical_random_threshold':
+            dict['prediction'] = closed_categorical_random_threshold.tolist()
+        if model=='test_data_mape_label':
+            dict['binary_prediction'] = test['mape_label'].tolist()
+        if model=='claim_label':
+            dict['binary_prediction'] = y_true_claim.tolist()
     # print model_data
 
-    # precision_recall_fscore_support(y_multi_true, dict['prediction'], average=None, labels=[‘pig’, ‘dog’, ‘cat’])
+    # model_path = os.path.join(sys.argv[4] + '/models.json')
+    #
+    # # np.savetxt(model_path, model_data)
+    #
+    # with open(model_path, "wb") as out:
+    #     json.dump(model_data, out,indent=4)
 
     categorical_data = {}
 
     for model, dict in model_data.iteritems():
-        dict['prob_path']=os.path.join(sys.argv[4] + model+'_prob_a.txt')
-        np.savetxt(dict['prob_path'], dict['prob_prediction'])
+        # dict['prob_path']=os.path.join(sys.argv[4] + model+'_prob_a.txt')
+        # np.savetxt(dict['prob_path'], dict['prob_prediction'])
         if any(dict['prediction']):
             categorical_data[(model,'precision')]=precision_recall_fscore_support(y_multi_true,dict['prediction'],labels=list(set(y_multi_true)),average=None)[0]
             categorical_data[(model,'recall')]=precision_recall_fscore_support(y_multi_true,dict['prediction'],labels=list(set(y_multi_true)),average=None)[1]
             categorical_data[(model,'f1')]=precision_recall_fscore_support(y_multi_true,dict['prediction'],labels=list(set(y_multi_true)),average=None)[2]
-            # temp_model = model.split('_')
-            # if "threshold" in temp_model:
-            #     if temp_model[0]=="open":
-            #         print "Precision and recall is",precision_recall_fscore_support(y_multi_true,dict['prediction'],labels=set(y_multi_true))
-            #     else:
-            #         print "Precision and recall is",precision_recall_fscore_support(y_multi_true,dict['prediction'],labels=set(y_multi_true))
-            # else:
-            #     if temp_model[0]=="open":
-            #         print "Precision and recall is",precision_recall_fscore_support(y_multi_true,dict['prediction'],labels=set(y_multi_true))
-            #     else:
-            #         print "Precision and recall is",precision_recall_fscore_support(y_multi_true,dict['prediction'],labels=set(y_multi_true))
             dict['binary_prediction']=[]
             for predict,true in zip(dict['prediction'],y_multi_true):
                 if predict==true:
@@ -466,10 +454,12 @@ if __name__ == "__main__":
 
     categorical_data.to_csv(path_or_buf=categoricalPath,encoding='utf-8')
 
-    # Save the models and results to a JSON file
-    with open(sys.argv[6], "wb") as out:
-            #Links the sentences to the region-value pairs
-        json.dump(model_data, out)
+    model_path = os.path.join(sys.argv[4] + '/models.json')
+
+    # np.savetxt(model_path, model_data)
+
+    with open(model_path, "wb") as out:
+        json.dump(model_data, out,indent=4)
 
 
     output = {(outerKey, innerKey): values for outerKey, innerDict in model_data.iteritems() for innerKey, values in innerDict.iteritems() if innerKey=='prediction' or innerKey=='binary_prediction'}
@@ -477,9 +467,11 @@ if __name__ == "__main__":
     for (outerKey, innerKey),values in output.iteritems():
         if innerKey=='prediction' and values:
             print values
-            split_values = np.array([str(item).split('/')[3] for item in values])
+            split_values = np.array([str(item).split('/')[3] if item!="no_region" else item for item in values])
             output[(outerKey, innerKey)] = split_values
             # output[(outerKey, innerKey)]= [item.split('/')[3] for item in values]
+        if innerKey == 'prediction' and not values:
+            output[(outerKey, innerKey)] = np.array(["no_categorical_value" for x in range(len(finalTestSentences))])
 
     output = pd.DataFrame(output)
 
@@ -511,7 +503,6 @@ if __name__ == "__main__":
     resultPath = os.path.join(sys.argv[4] + testSet + '_' + str(threshold) + '_regressionResult.csv')
 
     output.to_csv(path_or_buf=resultPath,encoding='utf-8')
-
 
     summaryDF = pd.DataFrame(columns=('precision', 'recall', 'f1', 'accuracy', 'evaluation set', 'threshold'))
 
@@ -556,11 +547,6 @@ if __name__ == "__main__":
         summaryDF = pd.concat([summaryDF, DF])
 
     for model,dict in model_data.iteritems():
-        # if any(dict['binary_prediction']):
-        # print "Model is ",model
-        # print "True claim is",np.array(y_true_claim)
-        # print "Result is",dict['binary_prediction']
-
         evaluation(y_true_claim, dict['binary_prediction'], testSet, threshold)
 
     # print summaryDF

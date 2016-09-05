@@ -5,10 +5,33 @@ from mydouble import mydouble, counts
 import cPickle as pickle
 import gzip
 from operator import itemgetter
-
 import random
 import math
 import numpy
+
+def train_instance_from_list(costDict, featureList):
+    """
+    Generate an Instance from a set of training instances with costs. The input is a list of features e.g. words, vectorized. Note, the vectorizer is the only way of mapping each word to a unique ID.
+    """
+    featureVector = mydefaultdict(mydouble)
+
+    for featureID,featureVal in enumerate(featureList):
+        # This makes word features sparse
+        if featureVal!=0:
+            featureVector[featureID] = featureVal
+
+    return Instance(featureVector, costDict)
+
+def test_instance_from_list(featureList):
+    featureVector = mydefaultdict(mydouble)
+
+    for featureID,featureVal in enumerate(featureList):
+        # This makes word features sparse
+        if featureVal!=0:
+            featureVector[featureID] = featureVal
+
+    # print "Test feature vector is",featureVector
+    return Instance(featureVector)
 
 
 def train_instance_from_svm_input(line):
@@ -22,6 +45,8 @@ def train_instance_from_svm_input(line):
     featureDict = details[1].split()
     for pair in costDict:
         label, cost = pair.split(":")
+        # Account for infinity
+        # if cost is not "inf" else float(1e10)
         costs[label] = float(cost)
     for featureID,featureVal in enumerate(featureDict):
         featureVector[featureID] = float(id(intern(featureVal)))

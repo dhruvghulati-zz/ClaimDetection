@@ -9,8 +9,6 @@ python src/main/propertyPredictor.py data/freebaseTriples.json data/sentenceMatr
 
 '''
 from __future__ import division
-
-import operator
 import numpy as np
 import sys
 import json
@@ -179,11 +177,14 @@ if __name__ == "__main__":
     rng.shuffle(sentence2locations2values['sentences'])
 
     # Note this can be made smaller for iteration purposes we don't need to use all sentences
-    for sentence in sentence2locations2values['sentences'][:50000]:
+    for sentence in sentence2locations2values['sentences'][:25000]:
         update(sentence)
     #     threshold = sys.argv[4]
     # pr  int "MAPE threshold is", threshold
     #     print updated
+
+    # Load in the test sentences and ensure none match what is here
+
 
     print "Sentences discarded", sentencesDiscarded
     print "Sentences with matching countries", len(predictionSentences)
@@ -203,6 +204,8 @@ if __name__ == "__main__":
     # The new sentence file with predicted statistical property
 
     outputFile = sys.argv[3]
+
+    # TODO - have to ensure the prediction sentences aren't anywhere in the test sentences
 
     # print predictionSentences
 

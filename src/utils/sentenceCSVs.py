@@ -14,6 +14,7 @@ import numpy as np
 import itertools
 import operator
 from nltk.text import Text
+import codecs
 
 rng = np.random.RandomState(101)
 
@@ -28,11 +29,12 @@ rng.shuffle(sentence2locations2values)
 # with open(sys.argv[6]) as fullPropFile:
 #     fullProperties = json.loads(fullPropFile.read())
 
-with open(sys.argv[2], 'w') as csvfile:
+with codecs.open(sys.argv[2], 'wb') as csvfile:
     fieldnames = ['sentence',
                   'Which of the statistics is this sentence talking about, if any?',
                   'Is the sentence a claim about an economic statistic that can be fact checked?'
                   ]
+    # csvfile.write(u'\ufeff'.encode('utf8'))
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     writer.writeheader()
     # [50000:60000]
@@ -63,9 +65,10 @@ with open(sys.argv[2], 'w') as csvfile:
         #         # "Exiting loop..."
         #         break
         # if not denseSentence:
-        sentence = unicode(sentence['parsedSentence']).encode("utf-8")
-        # print sentence['parsedSentence']
-        writer.writerow({'sentence': sentence})
+        # print sentence
+        # sentence = unicode(sentence['parsedSentence']).encode("utf-8")
+        # print sentence
+        writer.writerow({'sentence': sentence['parsedSentence'].encode('utf-8')})
 
 # with open(sys.argv[3], 'w') as csvfile:
 #     fieldnames = ['statistic']

@@ -1,35 +1,86 @@
 '''
-# so this script takes as input a dictionary in json with the following structure:
-# dep or string pattern : {location1:[values], location2:[values]}, etc.
-# and does the following kinds of filtering:
-# - removes locations that have less than one value for a pattern
-# - removes patterns for which location lists are all over the place (high stdev)
-# - removes patterns that have fewer than arg1 location
+This takes in 2 files from the sentence slots which
+ 1. Is for training (includes all sentences)
+2. is for labelling (discarded overly dense sentences)
 
-# The second argument is a list of (FreeBase) region names to their aliases which will
-# to bring condense the matrix (UK and U.K. becoming the same location), but also they
-# prepare us for experiments 
+- It optionally can output files with sentences with 0 values (from sentence) removed
+- It applies alias locations to both files
+
+It removes:
+
+1. Duplicate original sentence and location-value-pairs for the training sentences (which can be caused due to the LOCATION_SLOT LOCATION_SLOT issue with countries like Hong Kong
+2. Duplicate parsed sentences overall for the labelled sentences.
+
+Ensures no potential training sentences could every appear in the predefined test sentences.
+
+Outputs:
+
+-Training sentences (all of them)
+-Unique sentences for labelling, any of which can be sent out for labelling.
+
+Arguments:
+
+/Users/dhruv/Documents/university/ClaimDetection/data/output/sentenceRegionValue.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/sentenceSlotsFiltered.json
+/Users/dhruv/Documents/university/ClaimDetection/data/aliases.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/fullTestLabels.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/cleanFullLabels.json
+/Users/dhruv/Documents/university/ClaimDetection/data/sentenceMatrixFilteredZero.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/uniqueSentenceLabels.json
 '''
 
 import json
 import numpy as np
 import sys
-from collections import OrderedDict
-import yaml
 import itertools
 import operator
-from operator import itemgetter
-import pprint
 
-# data/output/sentenceRegionValue1.json
-# data/output/sentenceSlotsFiltered1.json
-# data/aliases.json
-# data/sentenceMatrixFiltered1.json
-# data/output/uniqueSentenceLabels1.json
 
-# We distinguish between the two by re- quiring each region-pattern combination to have appeared at least twice.
+def removeZeros(inputDict):
+    # Now remove any sentences with values of 0:
+    finalpattern2locations2values = {}
+    finalpattern2locations2values['sentences'] = []
+    for i, sentence in enumerate(inputDict['sentences']):
+        for key, value in sentence['location-value-pair'].iteritems():
+            if value != 0.0:
+                finalpattern2locations2values['sentences'].append(sentence)
+    print "Unique sentences after deleting 0 values:", len(finalpattern2locations2values['sentences'])
+    return finalpattern2locations2values
 
-# python src/main/sentenceMatrixFiltering.py data/output/sentenceRegionValue.json data/aliases.json data/sentenceMatrixFiltered.json
+
+def convertAliases(region2aliases):
+    # so we first need to take the location2aliases dict and turn in into aliases to region
+    alias2region = {}
+    for region, aliases in region2aliases.items():
+        # add the location as alias to itself
+        alias2region[region] = region
+        for alias in aliases:
+            # so if this alias is used for a different location
+            if alias in alias2region and region != alias2region[alias]:
+                alias2region[alias] = None
+                alias2region[alias.lower()] = None
+            else:
+                # remember to add the lower
+                alias2region[alias] = region
+                alias2region[alias.lower()] = region
+
+    # now filter out the Nones
+    for alias, region in alias2region.items():
+        if region == None:
+            print "alias ", alias, " ambiguous"
+            del alias2region[alias]
+    return alias2region
+
+
+def applyAliases(aliases, sentenceDicts):
+    for index, dataTriples in enumerate(sentenceDicts):
+        for location, value in dataTriples['location-value-pair'].items():
+            region = location
+            if location in aliases:
+                region = aliases[location]
+            elif location.lower() in aliases:
+                region = aliases[location.lower()]
+            dataTriples['location-value-pair'] = {region: value}
 
 
 # helps detect errors
@@ -39,17 +90,15 @@ np.seterr(all='raise')
 print "Loading the model file...\n"
 with open(sys.argv[1]) as jsonFile:
     pattern2locations2values = json.loads(jsonFile.read())
-    # pattern2locations2values = yaml.safe_load(jsonFile)
 
 print "Loading the slots file...\n"
 with open(sys.argv[2]) as sentenceSlotsFull:
     fullSentenceSlots = json.loads(sentenceSlotsFull.read())
-    # fullSentenceSlots = yaml.safe_load(sentenceSlotsFull)
 
 print "Model sentences before filtering:", len(pattern2locations2values['sentences'])
 print "labelling sentences before filtering:", len(fullSentenceSlots)
 
-modelVals = operator.itemgetter(u"sentence",u"location-value-pair")
+modelVals = operator.itemgetter(u"sentence", u"location-value-pair")
 slotVals = operator.itemgetter(u"parsedSentence")
 
 pattern2locations2values['sentences'].sort(key=modelVals)
@@ -68,107 +117,59 @@ fullSentenceSlots[:] = result
 print "Unique sentences after filtering:", len(pattern2locations2values['sentences'])
 print "Unique labelling sentences after filtering:", len(fullSentenceSlots)
 
-# # Now remove any sentences with values of 0:
-# finalpattern2locations2values={}
-# finalpattern2locations2values['sentences'] = pattern2locations2values['sentences']
-
-#
-# finalpattern2locations2values={}
-# finalpattern2locations2values['sentences']=[]
-#
-# for i,sentence in enumerate(pattern2locations2values['sentences']):
-#     for key, value in sentence['location-value-pair'].iteritems():
-#         if value!=0.0:
-#             finalpattern2locations2values['sentences'].append(sentence)
-#
-#
-# print "Unique sentences after deleting 0 values:", len(finalpattern2locations2values['sentences'])
-
-#load the file
-print "Loading the aliases file\n"
+# load the file
+print "Loading the aliases file...\n"
 with open(sys.argv[3]) as jsonFile:
-    region2aliases = json.loads(jsonFile.read())
+    aliasFile = json.loads(jsonFile.read())
 
-# so we first need to take the location2aliases dict and turn in into aliases to region
-alias2region = {} 
-for region, aliases in region2aliases.items():
-    # add the location as alias to itself
-    alias2region[region] = region
-    for alias in aliases:
-        # so if this alias is used for a different location
-        if alias in alias2region and region!=alias2region[alias]:            
-            alias2region[alias] = None
-            alias2region[alias.lower()] = None
-        else:
-            # remember to add the lower
-            alias2region[alias] = region
-            alias2region[alias.lower()] = region
-            
-# now filter out the Nones
-for alias, region in alias2region.items():
-    if region == None:
-        print "alias ", alias, " ambiguous"
-        del alias2region[alias]
+alias2region = convertAliases(aliasFile)
 
 # ok, let's traverse now all the patterns and any locations we find we match them case independently to the aliases and replace them with the location
 
-print "Applying aliases for model\n"
+print "Applying aliases for model...\n"
 
-for index, dataTriples in enumerate(pattern2locations2values['sentences']):
-    # print index
-    # so here are the locations
-    # we must be careful in case two or more locations are collapsed to the same region
-    for location, value in dataTriples['location-value-pair'].items():
-        # print location
-        region = location
-    #         # if the location has an alias
-        if location in alias2region:
-            # get it
-            region = alias2region[location]
-            # print "New region is ", region
-        elif location.lower() in alias2region:
-            region = alias2region[location.lower()]
-            # print "New region is ", region
-        # if we haven't added it to the regions
-        dataTriples['location-value-pair']= {region:value}
-        # regions2values.append({region: value})
-# print pattern2locations2values
+applyAliases(alias2region, pattern2locations2values['sentences'])
 
-# print "Applying aliases for manual labelling\n"
-#
-# for index, dataTriples in enumerate(fullSentenceSlots):
-#     # print index
-#     # so here are the locations
-#     # we must be careful in case two or more locations are collapsed to the same region
-#
-#     for i,location in enumerate(dataTriples['regions']):
-#         # print location
-#         # print value
-#         region = location
-#     #         # if the location has an alias
-#         if location in alias2region:
-#             # get it
-#             region = alias2region[location]
-#             # print "New region is ", region
-#         elif location.lower() in alias2region:
-#             region = alias2region[location.lower()]
-#             # print "New region is ", region
-#         # if we haven't added it to the regions
-#         dataTriples['regions'][i] = region
-#         # location = region
-#         # np.put(dataTriples['regions'], i, region)
-#         # regions2values.append({region: value})
-# # print pattern2locations2values
+print "Applying aliases for manual labelling...\n"
 
+applyAliases(alias2region, fullSentenceSlots)
 
+print "Ensuring no sentences from this pool could occur anywhere in my training set...\n"
 
-print "Writing to filtered file for model\n"
+# load the file
+print "Loading the old test file...\n"
+with open(sys.argv[4]) as oldTestFile:
+    oldTestFile = json.loads(oldTestFile.read())
 
-with open(sys.argv[4], "wb") as out:
-    json.dump(pattern2locations2values, out,indent=4)
+print "Loading the new test file...\n"
+with open(sys.argv[5]) as newTestFile:
+    newTestFile = json.loads(newTestFile.read())
+
+print "Old test files:", len(oldTestFile)
+print "New test files:", len(newTestFile)
+
+uniqueTestSentences = []
+oldTestFile.extend(newTestFile)
+for myDict in oldTestFile:
+    if myDict not in uniqueTestSentences:
+        uniqueTestSentences.append(myDict)
+
+st = {(tuple(d["location-value-pair"].items()), d["parsedSentence"]) for d in uniqueTestSentences}
+
+pattern2locations2valuesUnique = {'sentences': []}
+
+pattern2locations2valuesUnique['sentences'][:] = (d for d in pattern2locations2values['sentences'] if (
+tuple(d["location-value-pair"].items()), d["parsedSentence"]) not in st)
+
+print "Training pool sentences after removing test sentences:", len(pattern2locations2valuesUnique['sentences'])
+
+print "Writing to filtered file for model...\n"
+
+with open(sys.argv[6], "wb") as out:
+    json.dump(pattern2locations2valuesUnique, out, indent=4, encoding='utf-8')
 
 print "Writing to filtered file for manual labelling\n"
 
-with open(sys.argv[5], "wb") as out:
-    json.dump(fullSentenceSlots, out,indent=4)
-
+with open(sys.argv[7], "wb") as out:
+    # Cant do ensure ascii false
+    json.dump(fullSentenceSlots, out, indent=4, encoding='utf-8')
