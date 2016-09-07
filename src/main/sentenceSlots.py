@@ -1,3 +1,17 @@
+'''
+
+TODO - this needs to really sort out the problems with too many training instances for region/value slots e.g. duplicates for Democratic Republic of Congo, however have fixed problem with parsed sentence including duplicate slots (so better for bag of words)
+http://stackoverflow.com/questions/38509239/need-to-remove-items-from-both-a-list-and-a-dictionary-of-tuple-value-pairs-at-s
+
+data/train_jsons
+data/output/sentenceRegionValueDep.json
+data/locationNames
+data/output/sentenceSlotsFilteredDep.json
+data/output/sentenceSlotsDiscardDep.json
+0.3
+
+'''
+
 import json
 import sys
 import glob
@@ -8,19 +22,7 @@ import numpy
 import codecs
 import itertools
 from nltk.text import Text
-'''
-TODO - this needs to really sort out the problems with too many training instances for region/value slots e.g. duplicates for Democratic Republic of Congo, however have fixed problem with parsed sentence including duplicate slots (so better for bag of words)
-http://stackoverflow.com/questions/38509239/need-to-remove-items-from-both-a-list-and-a-dictionary-of-tuple-value-pairs-at-s
-'''
 
-# data/train_jsons
-# data/output/sentenceRegionValue.json
-# data/locationNames
-# data/test_jsons
-# data/output/testData.json
-# data/output/sentenceSlotsFiltered.json
-# 0.3
-# data/output/sentenceSlotsDiscard.json
 
 def getShortestDepPaths(sentenceDAG, locationTokenIDs, numberTokenIDs):
     shortestPaths = []
@@ -65,8 +67,6 @@ def depPath2StringExtend(sentenceDAG, path, locationTokenIDs, numberTokenIDs, ex
             pathStrings.append(sentenceDAG.node[tokenId]["ner"] + "~" + sentenceDAG[tokenId][path[seqOnPath+2]]["label"])
 
     pathStrings.append("NUMBER_SLOT")
-
-
 
     if hasContentWord:
         strings.append("+".join(pathStrings))
@@ -143,6 +143,66 @@ def dictLocationMatching(sentence, tokenizedLocations):
         for tokenSeq in tokenSeqs:
             for tokenNo in range(tokenSeq[0], tokenSeq[1]):
                 sentence["tokens"][tokenNo]["ner"]  = "LOCATION"
+
+def getSurfacePatternsExtend(sentence, locationTokenIDs, numberTokenIDs, extend=True):
+    # so this can go either from the location to the number, or the other way around
+    # if the number token is before the first token of the location
+    tokenSeqs = []
+    if numberTokenIDs[-1] < locationTokenIDs[0]:
+        tokenIDs = range(numberTokenIDs[-1]+1, locationTokenIDs[0])
+    else:
+        tokenIDs = range(locationTokenIDs[-1]+1, numberTokenIDs[0])
+
+    # check whether there is a content word:
+    hasContentWord = False
+    tokens = []
+    for id in tokenIDs:
+        if sentence["tokens"][id]["ner"] == "O":
+            tokens.append('"' + sentence["tokens"][id]["word"].lower() + '"')
+            if sentence["tokens"][id]["pos"][0] in "NVJR":
+                hasContentWord = True
+        else:
+            tokens.append('"' + sentence["tokens"][id]["ner"] + '"')
+
+    if numberTokenIDs[-1] < locationTokenIDs[0]:
+        tokens = ["NUMBER_SLOT"] + tokens + ["LOCATION_SLOT"]
+    else:
+        tokens = ["LOCATION_SLOT"] + tokens + ["NUMBER_SLOT"]
+    if hasContentWord:
+        tokenSeqs.append(tokens)
+
+    if extend:
+        lhsID = min(list(numberTokenIDs) + list(locationTokenIDs))
+        rhsID = max(list(numberTokenIDs) + list(locationTokenIDs))
+        # add the word to left
+        extension = []
+        extensionHasContentWord = False
+        for idx in range(lhsID-1, max(-1, lhsID-10),-1):
+            if sentence["tokens"][idx]["ner"] == "O":
+                extension = ['"' + sentence["tokens"][idx]["word"].lower() + '"']  + extension
+                if sentence["tokens"][idx]["pos"][0] in "NVJR":
+                    extensionHasContentWord = True
+            else:
+                extension = ['"' + sentence["tokens"][idx]["ner"] + '"']  + extension
+            # add the extension if it has a content word and the last thing added is not a comma
+            if (hasContentWord or extensionHasContentWord) and (sentence["tokens"][idx]["word"] != ","):
+                tokenSeqs.append(copy.copy(extension) + tokens)
+
+        # and now to the right
+        extension = []
+        extensionHasContentWord = False
+        for idx in range(rhsID+1, min(len(sentence["tokens"]), rhsID+9)):
+            if sentence["tokens"][idx]["ner"] == "O":
+                extension.append('"' + sentence["tokens"][idx]["word"].lower() + '"')
+                if sentence["tokens"][idx]["pos"][0] in "NVJR":
+                    extensionHasContentWord = True
+            else:
+                extension.append('"' + sentence["tokens"][idx]["ner"] + '"')
+            # add the extension if it has a content word and the last thing added is not a comma
+            if (hasContentWord or extensionHasContentWord) and (sentence["tokens"][idx]["word"] != ","):
+                tokenSeqs.append(tokens + copy.copy(extension))
+
+    return tokenSeqs
 
 def getNumbers(sentence):
     # a number can span over multiple tokens
@@ -256,11 +316,11 @@ if __name__ == "__main__":
 
     parsedJSONDir = sys.argv[1]
 
-    labelFile = sys.argv[6]
+    labelFile = sys.argv[4]
 
-    discardFile = sys.argv[8]
+    discardFile = sys.argv[5]
 
-    wordDensityThreshold = float(sys.argv[7])
+    wordDensityThreshold = float(sys.argv[6])
 
     # get all the files
     jsonFiles = glob.glob(parsedJSONDir + "/*.json")
@@ -362,12 +422,28 @@ if __name__ == "__main__":
                         slotSentence = (" ").join(sampleTokens)
                         sentenceDict["parsedSentence"] = slotSentence
 
+                        sentenceDict["patterns"] = []
+
                         # for locationTokenID in locationTokenIDs:
                         #     for numberTokenID in numberTokenIDs:
 
                         shortestPaths = getShortestDepPaths(sentenceDAG, locationTokenIDs, numberTokenIDs)
+
+                        patterns = []
+
+                        for shortestPath in shortestPaths:
+                            pathStrings = depPath2StringExtend(sentenceDAG, shortestPath, locationTokenIDs, numberTokenIDs)
+                            patterns.extend(pathStrings)
+
+                        # now get the surface strings
+                        surfacePatternTokenSeqs = getSurfacePatternsExtend(sentence, locationTokenIDs, numberTokenIDs)
+                        for surfacePatternTokens in surfacePatternTokenSeqs:
+                            if len(surfacePatternTokens) < 15:
+                                surfaceString = ",".join(surfacePatternTokens)
+                                patterns.append(surfaceString)
                         # shortestPath = [val for sublist in shortestPaths for val in sublist]
                         # print "Shortest paths are",shortestPaths
+                        sentenceDict["patterns"] = patterns
 
                         # ignore paths longer than some number deps (=tokens_on_path + 1)
                         if len(shortestPaths) > 0 and len(shortestPaths[0]) < 10:
@@ -383,7 +459,7 @@ if __name__ == "__main__":
                                         text = [pathString]
                                         bigrams = [b for l in text for b in zip(l.split("+")[:-1], l.split("+")[1:])]
                                         # print "Bigrams are",bigrams
-                                            # Note this just takes one of the bigrams which is the closest in terms of tokens
+                                        # Note this just takes one of the bigrams which is the closest in terms of tokens
                                         sentenceDict["depPath"] = bigrams
 
 

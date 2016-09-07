@@ -122,6 +122,9 @@ def test_features(testSentences):
             clean_test_sentences.append(words)
             test_property_labels.append(sentence['property'])
             bigrams = sentence['depPath']
+
+
+
             test_bigram_list.append(bigrams)
             test_wordbigram_list.append(words + " " + bigrams.decode("utf-8"))
 
@@ -158,7 +161,7 @@ if __name__ == "__main__":
     '''
 
     train_wordlist = []
-    test_wordlist = []
+    clean_test_sentences = []
 
     train_gramlist = []
     test_gramlist = []
@@ -189,13 +192,11 @@ if __name__ == "__main__":
     # train_data_features = training_features(pattern2regions)
     training_features(pattern2regions)
 
-    clean_test_sentences = []
-
     print "Getting all the words in the training sentences...\n"
     #
     # test_data_features = test_features(finalTestSentences)
     test_features(finalTestSentences)
-    #
+
     print len(clean_test_sentences), "sets of test features"
     #
     # print clean_test_sentences
@@ -265,51 +266,26 @@ if __name__ == "__main__":
     Fitting all classifiers
     '''
 
-
-    print "Fitting the open multinomial BoW logistic regression model for probability models...\n"
-    open_multi_logit_words = text_clf.fit(train_wordlist, train_property_labels)
-
     print "Fitting the open multinomial BoW logistic regression model w/ ",threshold," MAPE threshold...\n"
     open_multi_logit_threshold_words = copy.deepcopy(text_clf).fit(train_wordlist, train_property_labels_threshold)
-
-    print "Fitting the closed multinomial BoW logistic regression model for probability models...\n"
-    closed_multi_logit_words = copy.deepcopy(text_clf).fit(train_wordlist, closed_train_property_labels)
 
     print "Fitting the closed multinomial BoW logistic regression model w/ ",threshold," MAPE threshold...\n"
     closed_multi_logit_threshold_words = copy.deepcopy(text_clf).fit(train_wordlist, closed_train_property_labels_threshold)
 
-    print "Fitting the open multinomial bigram logistic regression model for probability models...\n"
-    open_multi_logit_bigrams = copy.deepcopy(text_clf).fit(train_gramlist, train_property_labels)
-
     print "Fitting the open multinomial bigram logistic regression model w/ ",threshold," MAPE threshold...\n"
     open_multi_logit_threshold_bigrams = copy.deepcopy(text_clf).fit(train_gramlist, train_property_labels_threshold)
-
-    print "Fitting the closed multinomial bigram logistic regression model for probability models...\n"
-    closed_multi_logit_bigrams = copy.deepcopy(text_clf).fit(train_gramlist, closed_train_property_labels)
 
     print "Fitting the closed multinomial bigram logistic regression model w/ ",threshold," MAPE threshold...\n"
     closed_multi_logit_threshold_bigrams = copy.deepcopy(text_clf).fit(train_gramlist, closed_train_property_labels_threshold)
 
-    print "Fitting the open multinomial dependency bigram logistic regression model for probability models...\n"
-    open_multi_logit_depgrams = copy.deepcopy(text_clf).fit(train_bigram_list, train_property_labels)
-
     print "Fitting the open multinomial dependency bigram logistic regression model w/ ",threshold," MAPE threshold...\n"
     open_multi_logit_threshold_depgrams = copy.deepcopy(text_clf).fit(train_bigram_list, train_property_labels_threshold)
-
-    print "Fitting the closed multinomial dependency bigram logistic regression model for probability models...\n"
-    closed_multi_logit_depgrams = copy.deepcopy(text_clf).fit(train_bigram_list, closed_train_property_labels)
 
     print "Fitting the closed multinomial dependency bigram logistic regression model w/ ",threshold," MAPE threshold...\n"
     closed_multi_logit_threshold_depgrams = copy.deepcopy(text_clf).fit(train_bigram_list, closed_train_property_labels_threshold)
 
-    print "Fitting the open multinomial word+bigram logistic regression model for probability models...\n"
-    open_multi_logit_wordgrams = copy.deepcopy(text_clf).fit(train_wordbigram_list, train_property_labels)
-
     print "Fitting the open multinomial word+bigram logistic regression model w/ ",threshold," MAPE threshold...\n"
     open_multi_logit_threshold_wordgrams = copy.deepcopy(text_clf).fit(train_wordbigram_list, train_property_labels_threshold)
-
-    print "Fitting the closed multinomial word+bigram logistic regression model for probability models...\n"
-    closed_multi_logit_wordgrams = copy.deepcopy(text_clf).fit(train_wordbigram_list, closed_train_property_labels)
 
     print "Fitting the closed multinomial word+bigram logistic regression model w/ ",threshold," MAPE threshold...\n"
     closed_multi_logit_threshold_wordgrams = copy.deepcopy(text_clf).fit(train_wordbigram_list, closed_train_property_labels_threshold)
@@ -317,16 +293,8 @@ if __name__ == "__main__":
 
     print "Saving the category mappings to files\n"
 
-    multi_logit_categories = np.array(open_multi_logit_words.classes_)
-    category_path = os.path.join(sys.argv[4] + '/open_categories.txt')
-    np.savetxt(category_path, multi_logit_categories, fmt='%s')
-
     multi_logit_categories = np.array(open_multi_logit_threshold_words.classes_)
     category_path = os.path.join(sys.argv[4] + '/openthreshold_categories.txt')
-    np.savetxt(category_path, multi_logit_categories, fmt='%s')
-
-    multi_logit_categories = np.array(closed_multi_logit_words.classes_)
-    category_path = os.path.join(sys.argv[4] + '/closed_categories.txt')
     np.savetxt(category_path, multi_logit_categories, fmt='%s')
 
     multi_logit_categories = np.array(closed_multi_logit_threshold_words.classes_)
@@ -339,10 +307,10 @@ if __name__ == "__main__":
 
     '''
 
-    models = ['open_multi_logit_words', 'open_multi_logit_threshold_words', 'closed_multi_logit_words', 'closed_multi_logit_threshold_words',
-              'open_multi_logit_bigrams', 'open_multi_logit_threshold_bigrams', 'closed_multi_logit_bigrams', 'closed_multi_logit_threshold_bigrams',
-              'open_multi_logit_wordgrams', 'open_multi_logit_threshold_wordgrams', 'closed_multi_logit_wordgrams', 'closed_multi_logit_threshold_wordgrams',
-              'open_multi_logit_depgrams', 'open_multi_logit_threshold_depgrams', 'closed_multi_logit_depgrams', 'closed_multi_logit_threshold_depgrams',
+    models = ['open_multi_logit_threshold_words', 'closed_multi_logit_threshold_words',
+               'open_multi_logit_threshold_bigrams', 'closed_multi_logit_threshold_bigrams',
+               'open_multi_logit_threshold_wordgrams',  'closed_multi_logit_threshold_wordgrams',
+              'open_multi_logit_threshold_depgrams',  'closed_multi_logit_threshold_depgrams',
               'open_distant_sv_property_threshold', 'closed_distant_sv_property_threshold','andreas_threshold','categorical_random_threshold',
               'closed_categorical_random_threshold','test_data_mape_label', 'claim_label'
               ]
@@ -358,32 +326,6 @@ if __name__ == "__main__":
     for model, dict in model_data.iteritems():
         dict['prediction'] = []
         dict['prob_prediction'] = []
-
-        # Fill in the predictions
-        if model=='open_multi_logit_words':
-            dict['prediction'] = np.array(open_multi_logit_words.predict(clean_test_sentences)).tolist()
-            dict['prob_prediction'] = np.array(open_multi_logit_words.predict_proba(clean_test_sentences)).tolist()
-        if model=='closed_multi_logit_words':
-            dict['prediction'] = np.array(closed_multi_logit_words.predict(clean_test_sentences)).tolist()
-            dict['prob_prediction'] = np.array(closed_multi_logit_words.predict_proba(clean_test_sentences)).tolist()
-        if model=='open_multi_logit_bigrams':
-            dict['prediction'] = np.array(open_multi_logit_bigrams.predict(clean_test_sentences)).tolist()
-            dict['prob_prediction'] = np.array(open_multi_logit_bigrams.predict_proba(clean_test_sentences)).tolist()
-        if model=='closed_multi_logit_bigrams':
-            dict['prediction'] = np.array(closed_multi_logit_bigrams.predict(clean_test_sentences)).tolist()
-            dict['prob_prediction'] = np.array(closed_multi_logit_bigrams.predict_proba(clean_test_sentences)).tolist()
-        if model=='open_multi_logit_depgrams':
-            dict['prediction'] = np.array(open_multi_logit_depgrams.predict(clean_test_sentences)).tolist()
-            dict['prob_prediction'] = np.array(open_multi_logit_depgrams.predict_proba(clean_test_sentences)).tolist()
-        if model=='closed_multi_logit_depgrams':
-            dict['prediction'] = np.array(closed_multi_logit_depgrams.predict(clean_test_sentences)).tolist()
-            dict['prob_prediction'] = np.array(closed_multi_logit_depgrams.predict_proba(clean_test_sentences)).tolist()
-        if model=='open_multi_logit_wordgrams':
-            dict['prediction'] = np.array(open_multi_logit_wordgrams.predict(clean_test_sentences)).tolist()
-            dict['prob_prediction'] = np.array(open_multi_logit_wordgrams.predict_proba(clean_test_sentences)).tolist()
-        if model=='closed_multi_logit_wordgrams':
-            dict['prediction'] = np.array(closed_multi_logit_wordgrams.predict(clean_test_sentences)).tolist()
-            dict['prob_prediction'] = np.array(closed_multi_logit_wordgrams.predict_proba(clean_test_sentences)).tolist()
 
         if model=='open_multi_logit_threshold_words':
             dict['prediction'] = np.array(open_multi_logit_threshold_words.predict(clean_test_sentences)).tolist()
@@ -409,6 +351,7 @@ if __name__ == "__main__":
         if model=='closed_multi_logit_threshold_wordgrams':
             dict['prediction'] = np.array(closed_multi_logit_threshold_wordgrams.predict(clean_test_sentences)).tolist()
             dict['prob_prediction'] = np.array(closed_multi_logit_threshold_wordgrams.predict_proba(clean_test_sentences)).tolist()
+
         if model=='open_distant_sv_property_threshold':
             dict['prediction'] = np.array(test['predictedPropertyOpenThreshold']).tolist()
         if model=='closed_distant_sv_property_threshold':
@@ -424,13 +367,11 @@ if __name__ == "__main__":
         if model=='claim_label':
             dict['binary_prediction'] = y_true_claim.tolist()
     # print model_data
+    # This tells the probability predictor
+    model_path = os.path.join(sys.argv[4] + '/models.json')
 
-    # model_path = os.path.join(sys.argv[4] + '/models.json')
-    #
-    # # np.savetxt(model_path, model_data)
-    #
-    # with open(model_path, "wb") as out:
-    #     json.dump(model_data, out,indent=4)
+    with open(model_path, "wb") as out:
+        json.dump(model_data, out,indent=4)
 
     categorical_data = {}
 
@@ -466,7 +407,7 @@ if __name__ == "__main__":
 
     for (outerKey, innerKey),values in output.iteritems():
         if innerKey=='prediction' and values:
-            print values
+            # print values
             split_values = np.array([str(item).split('/')[3] if item!="no_region" else item for item in values])
             output[(outerKey, innerKey)] = split_values
             # output[(outerKey, innerKey)]= [item.split('/')[3] for item in values]
@@ -529,7 +470,7 @@ if __name__ == "__main__":
                 'f1': [f1],
                 'accuracy': [accuracy],
                 'evaluation set': [test_set],
-                'threshold': [threshold],
+                'ape_threshold': [threshold],
                 'probThreshold': ["no_probability_threshold"],
                 'trainingLabels':[trainingLabels],
                 'positiveOpenLabels':[positiveOpenTrainingLabels],

@@ -418,14 +418,14 @@ if __name__ == "__main__":
     cost_matrices = {}
 
     for x in range(1, 3):
-        cost_matrices["open_cost_{0}".format(x)] = {'cost_matrix': []}
-        cost_matrices["closed_cost_{0}".format(x)] = {'cost_matrix': []}
-        # cost_matrices["threshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
-        # cost_matrices["threshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
-        cost_matrices["costThreshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
-        cost_matrices["costThreshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
-        # cost_matrices["thresholdCostThreshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
-        # cost_matrices["thresholdCostThreshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
+        # cost_matrices["open_cost_{0}".format(x)] = {'cost_matrix': []}
+        # cost_matrices["closed_cost_{0}".format(x)] = {'cost_matrix': []}
+        cost_matrices["threshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
+        cost_matrices["threshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
+        # cost_matrices["costThreshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
+        # cost_matrices["costThreshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
+        cost_matrices["thresholdCostThreshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
+        cost_matrices["thresholdCostThreshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
 
     model_path = os.path.join(sys.argv[4] + '/models.txt')
 
@@ -479,14 +479,14 @@ if __name__ == "__main__":
     final_cost_matrices = {}
 
     for x in range(1, 3):
-        final_cost_matrices["open_cost_{0}".format(x)] = {'cost_matrix': []}
-        final_cost_matrices["closed_cost_{0}".format(x)] = {'cost_matrix': []}
-        # final_cost_matrices["threshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
-        # final_cost_matrices["threshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
-        final_cost_matrices["costThreshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
-        final_cost_matrices["costThreshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
-        # final_cost_matrices["thresholdCostThreshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
-        # final_cost_matrices["thresholdCostThreshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
+        # final_cost_matrices["open_cost_{0}".format(x)] = {'cost_matrix': []}
+        # final_cost_matrices["closed_cost_{0}".format(x)] = {'cost_matrix': []}
+        final_cost_matrices["threshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
+        final_cost_matrices["threshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
+        # final_cost_matrices["costThreshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
+        # final_cost_matrices["costThreshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
+        final_cost_matrices["thresholdCostThreshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
+        final_cost_matrices["thresholdCostThreshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
 
     # These are all the file paths for all the models
     for model,dict in final_cost_matrices.items():

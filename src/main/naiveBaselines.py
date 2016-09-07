@@ -53,7 +53,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.metrics import recall_score
 from sklearn.metrics import f1_score
 from sklearn.metrics import precision_recall_fscore_support
-from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from sklearn.linear_model import LogisticRegression
 import os
 import copy
@@ -219,6 +219,7 @@ if __name__ == "__main__":
     print len(clean_test_sentences), "sets of test features"
 
     text_clf = Pipeline([('vect', CountVectorizer(analyzer="word",tokenizer=None,preprocessor=None,stop_words=None,max_features=5000)),
+                         ('tfidf', TfidfTransformer(use_idf=True,norm='l2',sublinear_tf=True)),
                           ('clf',LogisticRegression(solver='newton-cg',class_weight='balanced', multi_class='multinomial',fit_intercept=True),
                           )])
 
@@ -249,6 +250,16 @@ if __name__ == "__main__":
     print "Fitting the closed multinomial word+bigram logistic regression model...\n"
     closed_multi_logit_wordgrams = copy.deepcopy(text_clf).fit(train_wordbigram_list, closed_train_property_labels)
 
+    print "Saving the category mappings to files\n"
+
+    multi_logit_categories = np.array(open_multi_logit_words.classes_)
+    category_path = os.path.join(sys.argv[4] + '/open_categories.txt')
+    np.savetxt(category_path, multi_logit_categories, fmt='%s')
+
+    multi_logit_categories = np.array(closed_multi_logit_words.classes_)
+    category_path = os.path.join(sys.argv[4] + '/closed_categories.txt')
+    np.savetxt(category_path, multi_logit_categories, fmt='%s')
+
     models = ['open_multi_logit_words', 'closed_multi_logit_words',
               'open_multi_logit_bigrams', 'closed_multi_logit_bigrams',
               'open_multi_logit_wordgrams', 'closed_multi_logit_wordgrams',
@@ -262,6 +273,13 @@ if __name__ == "__main__":
 
     # Load in the test data
     test = pd.DataFrame(finalTestSentences)
+
+    test['testSet'] = np.array([testSet for x in range(len(test['property']))])
+
+    # This is outputted for the probability predictor
+    testPath = os.path.join(sys.argv[4] + '/testData.csv')
+
+    test.to_csv(path_or_buf=testPath, encoding='utf-8')
 
     # These are the ground truths
     y_multi_true = np.array(test['property'])
@@ -297,23 +315,34 @@ if __name__ == "__main__":
 
     for model, dict in model_data.iteritems():
         dict['prediction'] = []
+        dict['prob_prediction'] = []
 
-        if model == 'open_multi_logit_words':
+        # Fill in the predictions
+        if model=='open_multi_logit_words':
             dict['prediction'] = np.array(open_multi_logit_words.predict(clean_test_sentences)).tolist()
-        if model == 'closed_multi_logit_words':
+            dict['prob_prediction'] = np.array(open_multi_logit_words.predict_proba(clean_test_sentences)).tolist()
+        if model=='closed_multi_logit_words':
             dict['prediction'] = np.array(closed_multi_logit_words.predict(clean_test_sentences)).tolist()
-        if model == 'open_multi_logit_bigrams':
+            dict['prob_prediction'] = np.array(closed_multi_logit_words.predict_proba(clean_test_sentences)).tolist()
+        if model=='open_multi_logit_bigrams':
             dict['prediction'] = np.array(open_multi_logit_bigrams.predict(clean_test_sentences)).tolist()
-        if model == 'closed_multi_logit_bigrams':
+            dict['prob_prediction'] = np.array(open_multi_logit_bigrams.predict_proba(clean_test_sentences)).tolist()
+        if model=='closed_multi_logit_bigrams':
             dict['prediction'] = np.array(closed_multi_logit_bigrams.predict(clean_test_sentences)).tolist()
-        if model == 'open_multi_logit_depgrams':
+            dict['prob_prediction'] = np.array(closed_multi_logit_bigrams.predict_proba(clean_test_sentences)).tolist()
+        if model=='open_multi_logit_depgrams':
             dict['prediction'] = np.array(open_multi_logit_depgrams.predict(clean_test_sentences)).tolist()
-        if model == 'closed_multi_logit_depgrams':
+            dict['prob_prediction'] = np.array(open_multi_logit_depgrams.predict_proba(clean_test_sentences)).tolist()
+        if model=='closed_multi_logit_depgrams':
             dict['prediction'] = np.array(closed_multi_logit_depgrams.predict(clean_test_sentences)).tolist()
-        if model == 'open_multi_logit_wordgrams':
+            dict['prob_prediction'] = np.array(closed_multi_logit_depgrams.predict_proba(clean_test_sentences)).tolist()
+        if model=='open_multi_logit_wordgrams':
             dict['prediction'] = np.array(open_multi_logit_wordgrams.predict(clean_test_sentences)).tolist()
-        if model == 'closed_multi_logit_wordgrams':
+            dict['prob_prediction'] = np.array(open_multi_logit_wordgrams.predict_proba(clean_test_sentences)).tolist()
+        if model=='closed_multi_logit_wordgrams':
             dict['prediction'] = np.array(closed_multi_logit_wordgrams.predict(clean_test_sentences)).tolist()
+            dict['prob_prediction'] = np.array(closed_multi_logit_wordgrams.predict_proba(clean_test_sentences)).tolist()
+
         if model == 'distant_supervision_open':
             dict['prediction'] = y_distant_sv_property_open.tolist()
         if model == 'distant_supervision_closed':
@@ -334,6 +363,13 @@ if __name__ == "__main__":
             dict['binary_prediction'] = positive_result.tolist()
         if model == 'negative_baseline':
             dict['binary_prediction'] = negative_result.tolist()
+
+    # print model_data
+    # This tells the probability predictor
+    model_path = os.path.join(sys.argv[4] + '/models.json')
+
+    with open(model_path, "wb") as out:
+        json.dump(model_data, out,indent=4)
 
     categorical_data = {}
 
@@ -357,7 +393,7 @@ if __name__ == "__main__":
 
     categorical_data = pd.DataFrame(categorical_data, index=[item.split('/')[3] for item in list(set(y_multi_true))])
 
-    categoricalPath = os.path.join(sys.argv[4] + testSet + '_categoricalResults.csv')
+    categoricalPath = os.path.join(sys.argv[4] + testSet + '_no_threshold_categoricalResults.csv')
 
     categorical_data.to_csv(path_or_buf=categoricalPath, encoding='utf-8')
 
@@ -392,7 +428,7 @@ if __name__ == "__main__":
 
     output = pd.concat([output, DF], axis=1)
 
-    resultPath = os.path.join(sys.argv[4] + testSet + '_regressionResult.csv')
+    resultPath = os.path.join(sys.argv[4] + testSet + '_no_threshold'+'_regressionResult.csv')
 
     output.to_csv(path_or_buf=resultPath, encoding='utf-8')
 
@@ -422,7 +458,7 @@ if __name__ == "__main__":
                 'f1': [f1],
                 'accuracy': [accuracy],
                 'evaluation set': [test_set],
-                'threshold': ["no_mape_threshold"],
+                'ape_threshold': ["no_mape_threshold"],
                 'probThreshold': ["no_probability_threshold"],
                 'trainingLabels': [trainingLabels],
                 'positiveOpenLabels': [""],

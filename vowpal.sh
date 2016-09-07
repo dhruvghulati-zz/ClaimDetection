@@ -1,6 +1,6 @@
 #!/bin/bash
 
-declare -a APEthreshold=(0.0050);
+declare -a APEthreshold=(0.0050 0.15);
 
  # 0.15
 
@@ -9,7 +9,7 @@ declare -a APEthreshold=(0.0050);
 # Shorter params
 # 0.0001 0.001 0.01 0.05 0.1 0.15 0.30 0.50 0.75 1.0
 
-declare -a costThreshold=(0.0001 0.001 0.01 0.05 0.1 0.15 0.30 0.50 0.75 1.0);
+declare -a costThreshold=(0.0001 0.001 0.0050 0.01 0.05 0.1 0.15 0.30 0.50 0.75 1.0);
 
 # declare -a biasThreshold=(0.00);
 
@@ -26,7 +26,7 @@ do
       do
         for slope in "${slopeThreshold[@]}";
         do
-            python src/main/costSensitiveClassifier.py data/output/predictedPropertiesZero.json data/output/devLabels.json data/featuresKept.json data/output/zero/arow_test/ data/output/zero/arow_test/predict2/ data/output/zero/arow_test/probPredict2/ $cost 0.00 $slope
+            python src/main/costSensitiveClassifier.py data/output/predictedPropertiesZero.json data/output/devLabels.json data/featuresKept.json data/output/zero/arow_test/ data/output/zero/arow_test/predict3/ data/output/zero/arow_test/probPredict3/ $cost 0.00 $slope
         done
       done
       # Now do the predictions with all these files outputting them somewhere
@@ -45,4 +45,4 @@ do
 done
 
 # Now make different probability predictions with the same input files and output these also somewhere in a tuning version for precision recall
-python src/main/costPredictions.py data/output/zero/arow_test/open_label_mapping.txt data/output/zero/arow_test/closed_label_mapping.txt data/output/zero/arow_test/open_label_mapping_threshold.txt data/output/zero/arow_test/closed_label_mapping_threshold.txt data/output/devLabels.json data/output/zero/arow_test/predict2/ data/output/zero/arow_test/probPredict2/ data/output/zero/arow_test/results2/
+python src/main/costPredictions.py data/output/zero/arow_test/open_label_mapping.txt data/output/zero/arow_test/closed_label_mapping.txt data/output/zero/arow_test/open_label_mapping_threshold.txt data/output/zero/arow_test/closed_label_mapping_threshold.txt data/output/devLabels.json data/output/zero/arow_test/predict3/ data/output/zero/arow_test/probPredict3/ data/output/zero/arow_test/results3/

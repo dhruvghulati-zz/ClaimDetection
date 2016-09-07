@@ -167,7 +167,7 @@ openThresholdProb = (1/float(len(openInvMappingThreshold.keys())))
 closedThresholdProb = (1/float(len(closedInvMappingThreshold.keys())))
 openProb = (1/float(len(openInvMapping.keys())))
 closedProb = (1/float(len(closedInvMapping.keys())))
-probThresholds = sorted([openThresholdProb,closedThresholdProb,openProb,closedProb,0.0001,0.001,0.005,0.01,0.02,0.04,0.05,0.06,0.075,0.10,0.15,0.30,0.40,0.50,0.75,1])
+probThresholds = sorted([openThresholdProb,closedThresholdProb,openProb,closedProb,0.0001,0.001,0.005,0.01,0.02,0.04,0.05,0.06,0.075,0.10,0.15,0.30,0.40,0.50,0.75,1.0])
 
 
 for score in probThresholds:
@@ -179,6 +179,7 @@ for score in probThresholds:
         data[score] = []
         for inner_dict in data['normal_prediction']:
             # print inner_dict
+            print "Score is",score
             label_prediction = max(inner_dict, key=inner_dict.get)
             score_prediction = max(inner_dict.itervalues())
             # print "Score prediction is",score_prediction
@@ -193,12 +194,15 @@ for score in probThresholds:
 #     for i in data['score_range']:
 #         print data[i]
 
-
-
-# print prob_predictions
-
 # Now we convert the labels
 prob_predictions = probLabelConvert(prob_predictions)
+
+# '''
+# Test if the probability label is having an effect
+# '''
+#
+# with open(os.path.join(sys.argv[8],'prob_models.json'),"wb") as f:
+#     json.dump(prob_predictions,f,indent=4)
 
 # Load in the test data
 test = pd.DataFrame(finalTestSentences)

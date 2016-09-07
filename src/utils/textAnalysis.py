@@ -15,7 +15,7 @@ This is a pipeline to produce the analyses we use in the thesis.
 /Users/dhruv/Documents/university/ClaimDetection/data/freebaseTriples.json
 /Users/dhruv/Documents/university/ClaimDetection/data/output/sentenceRegionValue.json
 /Users/dhruv/Documents/university/ClaimDetection/data/output/sentenceSlotsFiltered.json
-/Users/dhruv/Documents/university/ClaimDetection/data/predictedPropertiesZero.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/predictedPropertiesZero.json
 /Users/dhruv/Documents/university/ClaimDetection/data/output/fullTestLabels.json
 /Users/dhruv/Documents/university/ClaimDetection/data/output/cleanFullLabels.json
 /Users/dhruv/Documents/university/ClaimDetection/data/sentenceMatrixFilteredZero.json
@@ -161,37 +161,7 @@ def sentence_to_words(sentence, remove_stopwords=False):
     return (words)
 
 # This is about loading any file with property: region:value format
-def loadMatrix(jsonFile):
-    print "loading from file " + jsonFile
-    with open(jsonFile) as freebaseFile:
-        property2region2value = json.loads(freebaseFile.read())
 
-    regions = set([])
-    valueCounter = 0
-    kbValues = []
-    for country, property2value in property2region2value.items():
-        # Check for nan values and remove them
-        for property, value in property2value.items():
-            if not np.isfinite(value):
-                del property2value[property]
-                print "REMOVED:", value, " for ", property, " ", country
-        if len(property2value) == 0:
-            del property2region2value[property]
-            print "REMOVED property:", property, " no values left"
-        else:
-            # print "Length of properties is",len(property2value)
-            valueCounter += len(property2value)
-            regions = regions.union(set(property2value.keys()))
-
-    for country, property2value in property2region2value.items():
-        for property, value in property2value.items():
-            kbValues.append(value)
-
-    print len(kbValues),  " unique values"
-    print len(property2region2value), " countries"
-    print len(regions),  " unique properties"
-    print valueCounter, " values loaded"
-    return kbValues
 
 def training_features(inputSentences):
     global vectorizer
@@ -222,7 +192,7 @@ def test_features(testSentences):
 
     for sentence in testSentences:
         if sentence['parsedSentence'] != {} and sentence['mape_label'] != {}:
-            clean_test_sentences.append(" ".join(sentence_to_words(sentence['parsedSentence'], True)))
+            test_wordlist.append(" ".join(sentence_to_words(sentence['parsedSentence'], True)))
             test_property_labels.append(sentence['property'])
 
     # print "These are the clean words in the test sentences: ", clean_test_sentences
@@ -233,66 +203,8 @@ def test_features(testSentences):
     return test_data_features
 
 if __name__ == "__main__":
-    # training data
-    # load the sentence file for training
 
-    '''
-    Load in all the values
-    /Users/dhruv/Documents/university/ClaimDetection/data/freebaseTriples.json
-/Users/dhruv/Documents/university/ClaimDetection/data/output/sentenceRegionValue.json
-/Users/dhruv/Documents/university/ClaimDetection/data/output/sentenceSlotsFiltered.json
-/Users/dhruv/Documents/university/ClaimDetection/data/predictedPropertiesZero.json
-/Users/dhruv/Documents/university/ClaimDetection/data/output/fullTestLabels.json
-/Users/dhruv/Documents/university/ClaimDetection/data/output/cleanFullLabels.json
-/Users/dhruv/Documents/university/ClaimDetection/data/sentenceMatrixFilteredZero.json
-/Users/dhruv/Documents/university/ClaimDetection/data/output/uniqueSentenceLabels.json
-/Users/dhruv/Documents/university/ClaimDetection/data/output/mainMatrixFiltered.json
-/Users/dhruv/Documents/university/ClaimDetection/data/output/zero/data_analysis/
-/Users/dhruv/Documents/university/ClaimDetection/data/output/theMatrixExtend120TokenFiltered_2_2_0.1_0.5_fixed2.json
 
-    '''
-
-    # Load the KB
-    kbValues = np.array(loadMatrix(sys.argv[1]))
-
-    # Load the unfiltered sentences from extraction
-    with open(sys.argv[2]) as rawSentences:
-        rawSentences = json.loads(rawSentences.read())
-
-    # Load the unfiltered sentences for labelling
-    with open(sys.argv[3]) as rawLabelSentences:
-        rawLabelSentences = json.loads(rawLabelSentences.read())
-
-    # Load the training set
-    with open(sys.argv[4]) as trainingSentences:
-        trainingSentences = json.loads(trainingSentences.read())
-
-     # Load the test set from Andreas
-    with open(sys.argv[5]) as oldTestSentences:
-        oldTestSentences = json.loads(oldTestSentences.read())
-
-    # Load the full clean test frozenset
-    with open(sys.argv[6]) as newTestSentences:
-        newTestSentences = json.loads(newTestSentences.read())
-
-    # Load the filtered sentences from which the training sentences obtained
-    with open(sys.argv[7]) as filteredSentences:
-        filteredSentences = json.loads(filteredSentences.read())
-
-    # Load the unique sentence labels
-    with open(sys.argv[8]) as filteredLabelSentences:
-        filteredLabelSentences = json.loads(filteredLabelSentences.read())
-
-    # Load the post-filtering Andreas patterns
-    with open(sys.argv[9]) as newPatterns:
-        newPatterns = json.loads(newPatterns.read())
-
-    # Store the figures directory
-    figures = sys.argv[10]
-
-     # Load the old Andreas patterns
-    with open(sys.argv[11]) as oldPatterns:
-        oldPatterns = json.loads(oldPatterns.read())
 
     '''
     Here are the global features
@@ -334,43 +246,7 @@ if __name__ == "__main__":
 
     print "Getting all the words in the training sentences...\n"
 
-    # # This both sorts out the features and the training labels
-    #
-    # pattern2regions=pattern2regions[:15000]
-    #
-    # for dict in pattern2regions:
-    #     trainingValues.append(dict['location-value-pair'].values())
-    #
-    # trainingValues = np.array(trainingValues).flatten()
 
-    # bins=np.logspace(0.1, 1.0, 50)
-    # plt.hist(kbValues,bins=10)  # plt.hist passes it's arguments to np.histogram
-    # ion()
-    # plt.gca().set_xscale("log")
-    # print 'continue computation'
-    # plt.title("Histogram of KB Values")
-    # plt.show()
-    # np.logspace(0.1, 1.0, 50)
-    # kbValues = stats.zscore(kbValues)
-    # trainingValues = stats.zscore(trainingValues)
-
-    # kbValues = preprocessing.scale(kbValues)
-    # trainingValues = preprocessing.scale(trainingValues)
-
-    # trainingValues = preprocessing.scale(trainingValues, axis=0, with_mean=True, with_std=True, copy=True)
-    # kbValues = preprocessing.scale(kbValues, axis=0, with_mean=True, with_std=True, copy=True)
-
-    # print min(kbValues),max(kbValues)
-    #
-    # print min(trainingValues),max(trainingValues)
-    #
-    # plt.hist(kbValues,alpha=0.5,label='KB Values')  # plt.hist passes it's arguments to np.histogram
-    # ion()
-    # # plt.gca().set_xscale("log")
-    # plt.hist(trainingValues,alpha=0.5,label='Training Values')
-    # plt.title("Histogram of Values")
-    # plt.legend(loc='upper right')
-    # plt.savefig(os.path.join(sys.argv[5],'valuecomp.png'))
     #
     # train_data_features = training_features(pattern2regions)
     #

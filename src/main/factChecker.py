@@ -10,7 +10,7 @@ Location:[dep1:[val1, val2], dep1:[val1, val2, ...]]
 
 It produces a ranking of the sentences according to the relation at question and scores each value by MAPE
 
-python src/main/factChecker.py data/allCountriesPost2010-2014Filtered15-150.json data/theMatrixExtend120TokenFiltered_2_2_0.1_0.5_fixed2.json population 0.03125 data/htmlPages2textPARSEDALL data/locationNames data/aliases.json out/population.tsv data/output/fullTestLabels.json data/output/cleanFullLabels.json
+python src/main/factChecker.py data/freebaseTriples.json data/mainMatrixFiltered.json population 0.03125 data/output/cleanFullLabels.json data/locationNames data/aliases.json out/claims_identified/population.csv
 
 '''
 
@@ -41,7 +41,7 @@ for region, property2value in region2property2value.items():
 # text patterns
 textMatrix = baselinePredictor.BaselinePredictor.loadMatrix(sys.argv[2])
 
-print "Number of filtered patterns to use for training", len(textMatrix)
+print "Number of filtered patterns used for training", len(textMatrix)
 
 # specify which ones are needed:
 property = "/location/statistical_region/" + sys.argv[3]
@@ -54,18 +54,18 @@ params = [True, float(sys.argv[4])]
 # train
 predictor.trainRelation(property, property2region2value[property], textMatrix, sys.stdout, params)
 
-print "patterns kept:"
+print "patterns kept for this property:"
 print predictor.property2patterns[property].keys()
 
 
-# parsed texts to check
-parsedJSONDir = sys.argv[5]
-
-# get all the files
-jsonFiles = glob.glob(parsedJSONDir + "/*.json")
-
-
-print str(len(jsonFiles)) + " files to process"
+# # parsed texts to check
+# parsedJSONDir = sys.argv[5]
+#
+# # get all the files
+# jsonFiles = glob.glob(parsedJSONDir + "/*.json")
+#
+#
+# print str(len(jsonFiles)) + " files to process"
 
 # load the hardcoded names
 tokenizedLocationNames = []
@@ -107,121 +107,45 @@ print alias2region
 
 tsv = open(sys.argv[8], "wb")
 
-print "Ensuring no sentences from this pool could occur anywhere in my training set...\n"
-
-# load the file
-print "Loading the old test file...\n"
-with open(sys.argv[9]) as oldTestFile:
-    oldTestFile = json.loads(oldTestFile.read())
-
-print "Loading the new test file...\n"
-with open(sys.argv[10]) as newTestFile:
-    newTestFile = json.loads(newTestFile.read())
-
-print "Old test files:", len(oldTestFile)
-print "New test files:", len(newTestFile)
-
-uniqueTestSentences = []
-oldTestFile.extend(newTestFile)
-for myDict in oldTestFile:
-    if myDict not in uniqueTestSentences:
-        uniqueTestSentences.append(myDict)
-
-# The set of unique parsed sentences
-st = {d["parsedSentence"] for d in uniqueTestSentences}
-
-
-headers = ['sentence', 'region', 'kb_region', 'property', 'kb_value', 'mape_support_scaling_param', 'pattern', 'value', 'MAPE', 'source_JSON']
+headers = ['claim','prediction','sentence', 'region', 'kb_region', 'property','labeled_property', 'kb_value', 'mape_support_scaling_param', 'pattern', 'value', 'MAPE']
 
 tsv.write("\t".join(headers) + "\n")
 
-# Now go over each file
-for fileCounter, jsonFileName in enumerate(jsonFiles):
-    #print "processing " + jsonFileName
-    with codecs.open(jsonFileName) as jsonFile:
-        parsedSentences = json.loads(jsonFile.read())
+'''
+Now we apply to test data.
+'''
 
-    for sentence in parsedSentences:
-        # skip sentences with more than 120 tokens.
-        if len(sentence["tokens"])>120:
-            continue
+with codecs.open(sys.argv[5]) as testFile:
+    parsedSentences = json.loads(testFile.read())
 
-        # fix the ner tags
-        if len(tokenizedLocationNames)>0:
-            buildMatrix.dictLocationMatching(sentence, tokenizedLocationNames)
+for i, sentenceDict in enumerate(parsedSentences):
+    patternsApplied = []
+    for pattern in sentenceDict['patterns']:
+        # print "Pattern being tested is",pattern
+        if pattern in predictor.property2patterns[property].keys():
+            patternsApplied.append(pattern)
 
-        wordsInSentence = []
-        for idx, token in enumerate(sentence["tokens"]):
-            wordsInSentence.append(token["word"])
-        sample = " ".join(wordsInSentence)
+    if len(patternsApplied) > 0:
 
-        # get the numbers mentioned
-        tokenIDs2number = buildMatrix.getNumbers(sentence)
+        sentenceText = sentenceDict['parsedSentence']
+        location = sentenceDict['location-value-pair'].keys()[0]
+        number = sentenceDict['location-value-pair'].values()[0]
+        claim = sentenceDict['claim']
+        prediction = 1
+        labeled_property = sentenceDict['property'].split('/')[3]
 
-        # and the locations mentioned in the sentence
-        tokenIDs2location = buildMatrix.getLocations(sentence)
-
-        # So let's check if the locations are among those that we can fact check for this relation
-        for locationTokenIDs, location in tokenIDs2location.items():
-
-            # so we have the location, but is it a known region?
-            region = location
-            # if the location has an alias
-            if location in alias2region:
-                # get it
-                region = alias2region[location]
-            elif location.lower() in alias2region:
-                region = alias2region[location.lower()]
-
-            if region in property2region2value[property]:
-
-                sentenceDAG = buildMatrix.buildDAGfromSentence(sentence)
-
-                for numberTokenIDs, number in tokenIDs2number.items():
-
-                    #print "number in text: " + str(number)
-
-                    patterns = []
-                    # keep all the shortest paths between the number and the tokens of the location
-                    shortestPaths = buildMatrix.getShortestDepPaths(sentenceDAG, locationTokenIDs, numberTokenIDs)
-                    for shortestPath in shortestPaths:
-                        pathStrings = buildMatrix.depPath2StringExtend(sentenceDAG, shortestPath, locationTokenIDs, numberTokenIDs)
-                        patterns.extend(pathStrings)
-
-                    # now get the surface strings
-                    surfacePatternTokenSeqs = buildMatrix.getSurfacePatternsExtend(sentence, locationTokenIDs, numberTokenIDs)
-                    for surfacePatternTokens in surfacePatternTokenSeqs:
-                        if len(surfacePatternTokens) < 15:
-                            surfaceString = ",".join(surfacePatternTokens)
-                            patterns.append(surfaceString)
-
-                    patternsApplied = []
-                    for pattern in patterns:
-                        if pattern in predictor.property2patterns[property].keys():
-                            patternsApplied.append(pattern)
-
-                    if len(patternsApplied) > 0:
-                        wordsInSentence[numberTokenIDs[0]] = "<number>" + wordsInSentence[numberTokenIDs[0]]
-                        wordsInSentence[numberTokenIDs[-1]] = wordsInSentence[numberTokenIDs[-1]] + "</number>"
-
-                        wordsInSentence[locationTokenIDs[0]] = "<location>" + wordsInSentence[locationTokenIDs[0]]
-                        wordsInSentence[locationTokenIDs[-1]] = wordsInSentence[locationTokenIDs[-1]] + "</location>"
-
-                        sentenceText = " ".join(wordsInSentence)
-
-                        print "Sentence: " + sentenceText.encode('utf-8')
-                        print "location in text " + location.encode('utf-8') + " is known as " + region.encode('utf-8') + " in FB with known " + property + " value " + str(property2region2value[property][region])
-                        print "confidence level= " + str(len(patternsApplied)) + "\t" + str(patternsApplied)
-                        print "sentence states that " + location.encode('utf-8') + " has " + property + " value " + str(number)
-                        if property2region2value[property][region] != 0.0:
-                            mape = abs(number - property2region2value[property][region]) / float(abs(property2region2value[property][region]))
-                            print "MAPE: " + str(mape)
-                        else:
-                            print "MAPE undefined"
-                            mape = "undef"
-                        print "source: " + jsonFileName
-                        print "------------------------------"
-                        details = [sentenceText.encode('utf-8'), location.encode('utf-8'), region.encode('utf-8'), sys.argv[3], str(property2region2value[property][region]), str(len(patternsApplied)),str(patternsApplied), str(number), str(mape), jsonFileName]
-                        tsv.write("\t".join(details) + "\n")
+        print "Sentence: " + sentenceText.encode('utf-8')
+        print "location in text " + location.encode('utf-8') + " is known as " + region.encode('utf-8') + " in FB with known " + property + " value " + str(property2region2value[property][region])
+        print "confidence level= " + str(len(patternsApplied)) + "\t" + str(patternsApplied)
+        print "sentence states that " + location.encode('utf-8') + " has " + property + " value " + str(number)
+        if property2region2value[property][region] != 0.0:
+            mape = abs(number - property2region2value[property][region]) / float(abs(property2region2value[property][region]))
+            print "MAPE: " + str(mape)
+        else:
+            print "MAPE undefined"
+            mape = "undef"
+        print "------------------------------"
+        details = [str(claim).encode('utf-8'),str(prediction).encode('utf-8'),sentenceText.encode('utf-8'), location.encode('utf-8'), region.encode('utf-8'), sys.argv[3], labeled_property.encode('utf-8'),str(property2region2value[property][region]), str(len(patternsApplied)),str(patternsApplied), str(number), str(mape)]
+        tsv.write("\t".join(details) + "\n")
 
 tsv.close()

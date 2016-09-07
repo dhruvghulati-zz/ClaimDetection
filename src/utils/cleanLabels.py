@@ -5,7 +5,7 @@ This takes out the final claim /test labels and produces a dev and test file. It
 /Users/dhruv/Documents/university/ClaimDetection/data/output/cleanDevLabels.json
 /Users/dhruv/Documents/university/ClaimDetection/data/output/cleanTestLabels.json
 /Users/dhruv/Documents/university/ClaimDetection/data/output/cleanFullLabels.json
-/Users/dhruv/Documents/university/ClaimDetection/data/output/uniqueSentenceLabels.json
+/Users/dhruv/Documents/university/ClaimDetection/data/output/uniqueSentenceLabelsDep.json
 
 '''
 
@@ -38,7 +38,7 @@ for i,row in enumerate(reader):
 
 rng.shuffle(testArray)
 
-# Now append information from uniqueSentenceLabels
+# Now append information from uniqueSentenceLabels including dependency paths.
 print "processing " + sys.argv[5]
 with open(sys.argv[5]) as jsonFile:
     parsedSentences = json.loads(jsonFile.read())
