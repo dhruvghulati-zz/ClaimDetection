@@ -121,12 +121,12 @@ def test_features(testSentences):
             test_gramlist.append(wordgrams)
             clean_test_sentences.append(words)
             test_property_labels.append(sentence['property'])
-            bigrams = sentence['depPath']
-
-
+            bigrams = ""
+            if "depPath" in sentence.keys():
+                bigrams = sentence['depPath']
 
             test_bigram_list.append(bigrams)
-            test_wordbigram_list.append(words + " " + bigrams.decode("utf-8"))
+            test_wordbigram_list.append((words + " " + bigrams.decode("utf-8"))).decode('utf-8')
 
 
 # Find index of the true label for the sentence, and if that same index for that sentence is one, return the classifier class, else no region

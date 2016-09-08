@@ -295,7 +295,9 @@ def test_features(testSentences):
             test_gramlist.append(wordgrams)
             test_wordlist.append(words)
             test_property_labels.append(sentence['property'])
-            bigrams = sentence['depPath']
+            bigrams = ""
+            if "depPath" in sentence.keys():
+                bigrams = sentence['depPath']
             test_bigram_list.append(bigrams)
             test_wordbigram_list.append((words + " " + bigrams.decode("utf-8")).decode("utf-8"))
 

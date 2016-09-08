@@ -48,6 +48,16 @@ for i,triples in enumerate(parsedSentences):
         if triples['parsedSentence'] ==labelTriples['parsedSentence']:
             labelTriples.update(triples)
 
+print testArray[0]
+
+# Now adapt the bigrams so it matches the dev set:
+for i, labelTriples in enumerate(testArray):
+    if 'depPath' in labelTriples.keys():
+        bigrams = copy.deepcopy(labelTriples['depPath'])
+        bigrams = [("+").join(bigram).encode('utf-8') for bigram in bigrams]
+        bigrams = (' ').join(map(str, bigrams))
+        labelTriples['depPath'] = bigrams
+
 
 # Now split into dev and test
 testLabels = []
