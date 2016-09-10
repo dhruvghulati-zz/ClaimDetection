@@ -10,7 +10,7 @@ Location:[dep1:[val1, val2], dep1:[val1, val2, ...]]
 
 It produces a ranking of the sentences according to the relation at question and scores each value by MAPE
 
-python src/main/factChecker.py data/freebaseTriples.json data/mainMatrixFiltered.json population 0.03125 data/output/cleanFullLabels.json data/locationNames data/aliases.json out/claims_identified/population.csv
+python src/main/factChecker.py data/freebaseTriples.json data/mainMatrixFiltered.json population 0.03125 data/output/testLabels.json data/locationNames data/aliases.json out/claims_identified/population.csv
 
 '''
 

@@ -6,7 +6,7 @@ Splits the data into dev, hypertest, and final test labels, as well as full labe
 
 This labels each sentence in the training excel files as being 1 or 0 based on if their MAPE is above 0.05 or not
 
-python src/main/testFeatures.py data/featuresKept.json 0.05 data/freebaseTriples.json data/output/devLabels.json data/output/testLabels.json data/output/fullTestLabels.json
+python src/main/testFeatures.py data/featuresKept.json 0.05 data/freebaseTriples.json data/output/devLabels.json data/output/testLabels.json data/output/fullTestLabels.json data/output/cleanFullLabels.json data/output/cleanFullLabelsDistant.json
 
 '''
 
@@ -16,9 +16,6 @@ import json
 import sys
 import re
 import numpy as np
-
-predictionSentences = []
-
 
 def loadMatrix(jsonFile):
     print "loading from file " + jsonFile
@@ -58,15 +55,16 @@ def findMatch(target, country):
     return openMatch, closedMatch
 
 
-def update(sentence):
-    global negativeOpenThresholdInstances
-    global positiveOpenThresholdInstances
-    global negativeClosedThresholdInstances
-    global positiveClosedThresholdInstances
-    global threshold
+def update(sentence,threshold):
+
+    # negativeOpenThresholdInstances = 0
+    # positiveOpenThresholdInstances = 0
+    # negativeClosedThresholdInstances = 0
+    # positiveClosedThresholdInstances = 0
+
     (c, target), = sentence.get("location-value-pair").items()
+    res = sentence.copy()
     if c in property2region2value:
-        res = sentence.copy()
         country = property2region2value[c]
         matchedProperty, closedMatch = findMatch(target, country)
         error = absError(target, country.get(matchedProperty))
@@ -75,28 +73,40 @@ def update(sentence):
         res.update({'predictedPropertyOpen': matchedProperty, 'meanAbsError': error})
         if error < threshold:
             res.update({'predictedPropertyOpenThreshold': matchedProperty, 'meanAbsError': error})
-            positiveOpenThresholdInstances += 1
+            # positiveOpenThresholdInstances += 1
         else:
             res.update({'predictedPropertyOpenThreshold': "no_region", 'meanAbsError': error})
-            negativeOpenThresholdInstances += 1
+            # negativeOpenThresholdInstances += 1
         if closedError < threshold:
             res.update({'predictedPropertyClosedThreshold': closedMatch, 'closedMeanAbsError': closedError})
-            positiveClosedThresholdInstances += 1
+            # positiveClosedThresholdInstances += 1
         else:
             res.update({'predictedPropertyClosedThreshold': "no_region", 'closedMeanAbsError': error})
-            negativeClosedThresholdInstances += 1
-        predictionSentences.append(res)
+            # negativeClosedThresholdInstances += 1
 
+    # print "Negative open threshold instances", negativeOpenThresholdInstances
+    # print "Positive open threshold instances", positiveOpenThresholdInstances
+    # print "Negative closed threshold instances", negativeClosedThresholdInstances
+    # print "Positive closed threshold instances", positiveClosedThresholdInstances
 
-def mape_threshold_region_predictor(testSentences):
-    for sentence in testSentences:
-        update(sentence)
+    return res
+
+def mape_threshold_region_predictor(testSentences,threshold):
+
+    predictionSentences = []
+    for i,sentence in enumerate(testSentences):
+        predictionSentences.append(update(sentence,threshold))
+    # Here I give "no region" to any sentence not a claim
+    for i, dataTriples in enumerate(predictionSentences):
+        dataTriples['threshold'] = threshold
     return predictionSentences
 
 
-def testSentenceLabels(dict_list):
+def testSentenceLabels(input_properties):
+
+    dict_list = []
     temp_properties = []
-    for i, property in enumerate(properties):
+    for i, property in enumerate(input_properties):
         temp_properties.append(property.split("/")[3])
         # TODO - Command line issue as I had hard coded the location of these files ../../, in command line remove
     print "Temporary properties are", len(temp_properties)
@@ -187,10 +197,6 @@ def labelSlotFiltering(testLabels):
             # print "New sentence is ", slotText
             dataTriples['parsedSentence'] = slotText
     # print "Total test labels is", len(testLabels)
-
-    # Now we give the MAPEs labels:
-
-    for i, dataTriples in enumerate(testLabels):
         # print "Old sentence is" ,dataTriples['parsedSentence']
         dataTriples['mape_label'] = {}
         dataTriples['categorical_mape_label'] = {}
@@ -201,9 +207,8 @@ def labelSlotFiltering(testLabels):
         else:
             dataTriples['mape_label'] = 0
             dataTriples['categorical_mape_label'] = "no_region"
-    # Here I give "no region" to any sentence not a claim
-    for i, dataTriples in enumerate(testLabels):
-        dataTriples['threshold'] = threshold
+    # Now we give the MAPEs labels
+
     return testLabels
 
 
@@ -216,14 +221,16 @@ if __name__ == "__main__":
         properties = json.loads(featuresKept.read())
     print "We have ", len(properties), "features kept\n"
 
+    with open(sys.argv[7]) as newTestLabels:
+        newTestLabels = json.loads(newTestLabels.read())
+    print "We have ", len(newTestLabels), "fresh test labels\n"
+
     threshold = float(sys.argv[2])
 
     property2region2value = loadMatrix(sys.argv[3])
 
     # This step is necessary for getting data from xlsx
-    dict_list = []
-
-    testLabels = testSentenceLabels(dict_list)
+    testLabels = testSentenceLabels(properties)
 
     print "Extracted test labels with parsed sentences from Excel sheets is", len(testLabels)
 
@@ -267,17 +274,10 @@ if __name__ == "__main__":
     # Here I add the same predictor I used for the training data on the test data
     # I need the full properties again to do a prediciton
 
-    negativeOpenThresholdInstances = 0
-    positiveOpenThresholdInstances = 0
-    negativeClosedThresholdInstances = 0
-    positiveClosedThresholdInstances = 0
+    cleanTestLabels = mape_threshold_region_predictor(cleanTestLabels,threshold)
 
-    cleanTestLabels = mape_threshold_region_predictor(cleanTestLabels)
+    newTestLabels = mape_threshold_region_predictor(newTestLabels,threshold)
 
-    print "Negative open threshold instances", negativeOpenThresholdInstances
-    print "Positive open threshold instances", positiveOpenThresholdInstances
-    print "Negative closed threshold instances", negativeClosedThresholdInstances
-    print "Positive closed threshold instances", positiveClosedThresholdInstances
 
     finalTestLabels = []
     devLabels = []
@@ -328,14 +328,14 @@ if __name__ == "__main__":
 
     print "Number of dev sentences is", len(devLabels)
 
-    print "Total positive mape labels in devLabels is ", len(
-        [dataTriples['mape_label'] for a, dataTriples in enumerate(devLabels) if dataTriples['mape_label'] == 1])
-    print "Total negative mape labels in devLabels  is ", len(
-        [dataTriples['mape_label'] for a, dataTriples in enumerate(devLabels) if dataTriples['mape_label'] == 0])
-    print "Total positive claim labels in devLabels is ", len(
-        [dataTriples['claim'] for a, dataTriples in enumerate(devLabels) if dataTriples['claim'] == 1])
-    print "Total negative claim labels in devLabels is ", len(
-        [dataTriples['claim'] for a, dataTriples in enumerate(devLabels) if dataTriples['claim'] == 0])
+    # print "Total positive mape labels in devLabels is ", len(
+    #     [dataTriples['mape_label'] for a, dataTriples in enumerate(devLabels) if dataTriples['mape_label'] == 1])
+    # print "Total negative mape labels in devLabels  is ", len(
+    #     [dataTriples['mape_label'] for a, dataTriples in enumerate(devLabels) if dataTriples['mape_label'] == 0])
+    # print "Total positive claim labels in devLabels is ", len(
+    #     [dataTriples['claim'] for a, dataTriples in enumerate(devLabels) if dataTriples['claim'] == 1])
+    # print "Total negative claim labels in devLabels is ", len(
+    #     [dataTriples['claim'] for a, dataTriples in enumerate(devLabels) if dataTriples['claim'] == 0])
 
     uniquePropDev = set(dataTriples['property'] for a, dataTriples in enumerate(devLabels))
     print "There are ", len(uniquePropDev), "unique properties covered in devLabels", "\n"
@@ -351,3 +351,7 @@ if __name__ == "__main__":
     with open(sys.argv[6], "wb") as out:
         # Links the sentences to the region-value pairs
         json.dump(cleanTestLabels, out, indent=4)
+
+    with open(sys.argv[8], "wb") as out:
+        # Links the sentences to the region-value pairs
+        json.dump(newTestLabels, out, indent=4)

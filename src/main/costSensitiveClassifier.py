@@ -285,21 +285,22 @@ def test_features(testSentences):
     global test_wordbigram_list
     print "Preparing the raw test features...\n"
     for sentence in testSentences:
-        if sentence['parsedSentence'] != {} and sentence['mape_label'] != {}:
-            words = " ".join(sentence_to_words(sentence['parsedSentence'], True))
-            word_list = sentence_to_words(sentence['parsedSentence'], True)
-            wordgrams = find_ngrams(word_list, 2)
-            for i, grams in enumerate(wordgrams):
-                wordgrams[i] = '+'.join(grams)
-            wordgrams = (" ").join(wordgrams)
-            test_gramlist.append(wordgrams)
-            test_wordlist.append(words)
-            test_property_labels.append(sentence['property'])
-            bigrams = ""
-            if "depPath" in sentence.keys():
-                bigrams = sentence['depPath']
-            test_bigram_list.append(bigrams)
-            test_wordbigram_list.append((words + " " + bigrams.decode("utf-8")).decode("utf-8"))
+        words = " ".join(sentence_to_words(sentence['parsedSentence'], True))
+        word_list = sentence_to_words(sentence['parsedSentence'], True)
+        wordgrams = find_ngrams(word_list, 2)
+        for i, grams in enumerate(wordgrams):
+            wordgrams[i] = '+'.join(grams)
+        wordgrams = (" ").join(wordgrams)
+        test_gramlist.append(wordgrams)
+        test_wordlist.append(words)
+        test_property_labels.append(sentence['property'])
+        bigrams = ""
+        if "depPath" in sentence.keys():
+            bigrams = sentence['depPath'].encode('utf-8')
+
+        # print "Bigrams are",bigrams
+        test_bigram_list.append(bigrams)
+        test_wordbigram_list.append((words + " " + bigrams.decode("utf-8")))
 
     test_wordbigram_list = vectorizer.transform(test_wordbigram_list).toarray().astype(np.float)
 
@@ -317,9 +318,10 @@ if __name__ == "__main__":
 
     print "Length of final sentences is", len(testSentences)
 
-    threshold = testSentences[0]['threshold']
-
-    print "APE Threshold for no region label is ", threshold
+    # # TODO - this is only using the sentences we also apply an APE threshold to
+    # threshold = testSentences[0]['threshold']
+    #
+    # print "APE Threshold for no region label is ", threshold
 
     with open(sys.argv[3]) as featuresKept:
         properties = json.loads(featuresKept.read())
@@ -420,14 +422,14 @@ if __name__ == "__main__":
     cost_matrices = {}
 
     for x in range(1, 3):
-        # cost_matrices["open_cost_{0}".format(x)] = {'cost_matrix': []}
-        # cost_matrices["closed_cost_{0}".format(x)] = {'cost_matrix': []}
-        cost_matrices["threshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
-        cost_matrices["threshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
-        # cost_matrices["costThreshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
-        # cost_matrices["costThreshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
-        cost_matrices["thresholdCostThreshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
-        cost_matrices["thresholdCostThreshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
+        cost_matrices["open_cost_{0}".format(x)] = {'cost_matrix': []}
+        cost_matrices["closed_cost_{0}".format(x)] = {'cost_matrix': []}
+        # cost_matrices["threshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
+        # cost_matrices["threshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
+        cost_matrices["costThreshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
+        cost_matrices["costThreshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
+        # cost_matrices["thresholdCostThreshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
+        # cost_matrices["thresholdCostThreshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
 
     model_path = os.path.join(sys.argv[4] + '/models.txt')
 
@@ -481,19 +483,21 @@ if __name__ == "__main__":
     final_cost_matrices = {}
 
     for x in range(1, 3):
-        # final_cost_matrices["open_cost_{0}".format(x)] = {'cost_matrix': []}
-        # final_cost_matrices["closed_cost_{0}".format(x)] = {'cost_matrix': []}
-        final_cost_matrices["threshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
-        final_cost_matrices["threshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
-        # final_cost_matrices["costThreshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
-        # final_cost_matrices["costThreshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
-        final_cost_matrices["thresholdCostThreshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
-        final_cost_matrices["thresholdCostThreshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
+        final_cost_matrices["open_cost_{0}".format(x)] = {'cost_matrix': []}
+        final_cost_matrices["closed_cost_{0}".format(x)] = {'cost_matrix': []}
+        # final_cost_matrices["threshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
+        # final_cost_matrices["threshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
+        final_cost_matrices["costThreshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
+        final_cost_matrices["costThreshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
+        # final_cost_matrices["thresholdCostThreshold_open_cost_{0}".format(x)] = {'cost_matrix': []}
+        # final_cost_matrices["thresholdCostThreshold_closed_cost_{0}".format(x)] = {'cost_matrix': []}
 
     # These are all the file paths for all the models
     for model,dict in final_cost_matrices.items():
-        dict['wordgrams_predict_path'] = os.path.join(sys.argv[5]+model+"_"+ str(threshold)+"_"+str(costThreshold)+"_"+str(bias)+"_"+str(slope)+"_wordgrams.predict")
-        dict['wordgrams_prob_path'] = os.path.join(sys.argv[6]+model+"_"+ str(threshold)+"_"+str(costThreshold)+"_"+str(bias)+"_"+str(slope)+"_wordgrams.probpredict")
+        # TODO - this threshold can be added if you use APE thresholding
+        # str(threshold)
+        dict['wordgrams_predict_path'] = os.path.join(sys.argv[5]+model+"_"+str(costThreshold)+"_"+str(bias)+"_"+str(slope)+"_wordgrams.predict")
+        dict['wordgrams_prob_path'] = os.path.join(sys.argv[6]+model+"_"+str(costThreshold)+"_"+str(bias)+"_"+str(slope)+"_wordgrams.probpredict")
 
     for (model, arr),(finalModel, finalDict) in zip(cost_matrices.items(),final_cost_matrices.items()):
         if model.startswith("threshold") or model.startswith("thresholdCostThreshold"):

@@ -103,7 +103,7 @@ if __name__ == "__main__":
     with open(sys.argv[3]) as modelFile:
         model_data = json.loads(modelFile.read())
 
-    test = pd.read_csv(os.path.join(sys.argv[1] + '/testData.csv'))
+    test = pd.read_csv(os.path.join(sys.argv[1] + 'testData.csv'))
 
     probThreshold = float(sys.argv[2])
 
@@ -120,9 +120,9 @@ if __name__ == "__main__":
     Now we load in the probability predictions for each model we care about
     '''
 
-    prob_prediction_threshold_classes = np.loadtxt(os.path.join(sys.argv[1] +'/openthreshold_categories.txt'),dtype=str)
+    prob_prediction_threshold_classes = np.loadtxt(os.path.join(sys.argv[1] +'openthreshold_categories.txt'),dtype=str)
 
-    closed_prob_prediction_threshold_classes = np.loadtxt(os.path.join(sys.argv[1] +'/closedthreshold_categories.txt'),dtype=str)
+    closed_prob_prediction_threshold_classes = np.loadtxt(os.path.join(sys.argv[1] +'closedthreshold_categories.txt'),dtype=str)
 
     for model, dict in model_data.iteritems():
         # print model

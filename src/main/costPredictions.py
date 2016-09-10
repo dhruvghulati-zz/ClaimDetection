@@ -179,7 +179,7 @@ for score in probThresholds:
         data[score] = []
         for inner_dict in data['normal_prediction']:
             # print inner_dict
-            print "Score is",score
+            # print "Score is",score
             label_prediction = max(inner_dict, key=inner_dict.get)
             score_prediction = max(inner_dict.itervalues())
             # print "Score prediction is",score_prediction

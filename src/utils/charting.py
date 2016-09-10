@@ -200,8 +200,8 @@ def word_frequencies(trainlist,testlist,path):
     ax.set_xticks(ind + width,minor=True)
     ax.set_xticklabels(words_train,rotation=90,minor=False,ha='left')
     ax.set_xticklabels(words_test,rotation=90,minor=True,ha='left')
-    ax.tick_params(axis='both', which='major', labelsize=6)
-    ax.tick_params(axis='both', which='minor', labelsize=6)
+    ax.tick_params(axis='both', which='major', labelsize=8)
+    ax.tick_params(axis='both', which='minor', labelsize=8)
     vals = ax.get_yticks()
     ax.set_yticklabels(['{:1.1f}%'.format(x*100) for x in vals])
     fig.tight_layout()
@@ -314,7 +314,7 @@ def autolabel(rects,labels):
         height = rect.get_height()
         plt.text(rect.get_x() + rect.get_width()/2., 1.05*height,
                 label,
-                ha='left', va='bottom',fontsize=6,rotation=45)
+                ha='left', va='bottom',fontsize=8,rotation=45)
         # style='italic'
 
 
@@ -378,10 +378,10 @@ def trainingTestComparison(training,oldtest,newtest,filename):
     ax.hist(newTestValues,alpha=0.5,color='b',bins=25,normed=True,label='New Test Values')  # plt.hist passes it's arguments to np.histogram
     plt.title("Histogram of Values")
     ax.legend(loc='upper right')
-    ax.tick_params(axis='both', which='major', labelsize=6)
-    ax.tick_params(axis='both', which='minor', labelsize=6)
+    ax.tick_params(axis='both', which='major', labelsize=8)
+    ax.tick_params(axis='both', which='minor', labelsize=8)
     vals = ax.get_yticks()
-    ax.set_yticklabels(['{:1.1f}%'.format(x*100) for x in vals])
+    ax.set_yticklabels(['{:1.1f}%'.format(x) for x in vals])
     plt.savefig(filename)
     plt.clf()
 
@@ -407,10 +407,10 @@ def trainingKBComparison(kbValues,input_sentences,filename):
     ax.hist(trainingValues,alpha=0.5,color='r',normed=True,bins=25,label='Training Values')
     plt.title("Histogram of Values")
     ax.legend(loc='upper right')
-    ax.tick_params(axis='both', which='major', labelsize=6)
-    ax.tick_params(axis='both', which='minor', labelsize=6)
+    ax.tick_params(axis='both', which='major', labelsize=8)
+    ax.tick_params(axis='both', which='minor', labelsize=8)
     vals = ax.get_yticks()
-    ax.set_yticklabels(['{:1.1f}%'.format(x*100) for x in vals])
+    ax.set_yticklabels(['{:1.1f}%'.format(x) for x in vals])
     plt.savefig(filename)
     plt.clf()
 
@@ -439,11 +439,10 @@ def countryChartList(inputlist,path):
               y0,
               y1*plot_margin))
 
-    plt.xlabel('Countries in Dataset')
     plt.ylabel('Occurrences')
 
-    plt.tick_params(axis='both', which='major', labelsize=6)
-    plt.tick_params(axis='both', which='minor', labelsize=6)
+    plt.tick_params(axis='both', which='major', labelsize=8)
+    plt.tick_params(axis='both', which='minor', labelsize=8)
     plt.tight_layout()
 
     autolabel(countrychart,seen_countries_percentage)
@@ -465,7 +464,6 @@ def valueChartList(inputlist,path):
     numberchart = plt.bar(range(len(seen_values)), map(itemgetter(1), seen_values), width=0.9,alpha=0.6)
     plt.xticks(range(len(seen_values)), map(itemgetter(0), seen_values),ha='left')
 
-    plt.xlabel('Values in Dataset')
     plt.ylabel('Occurrences')
 
     plot_margin = 1.15
@@ -475,8 +473,8 @@ def valueChartList(inputlist,path):
               y0,
               y1*plot_margin))
 
-    plt.tick_params(axis='both', which='major', labelsize=6)
-    plt.tick_params(axis='both', which='minor', labelsize=6)
+    plt.tick_params(axis='both', which='major', labelsize=8)
+    plt.tick_params(axis='both', which='minor', labelsize=8)
     plt.tight_layout()
 
     autolabel(numberchart,seen_values_pct)
@@ -495,7 +493,6 @@ def chartProperties(counter,path):
     numberchart = plt.bar(range(len(seen_properties)), map(itemgetter(1), seen_properties), width=0.9,alpha=0.6)
     plt.xticks(range(len(seen_properties)), map(itemgetter(0), seen_properties),rotation=90,ha='left')
 
-    plt.xlabel('Properties in Data')
     plt.ylabel('Occurrences')
 
     plot_margin = 1.15
@@ -505,8 +502,8 @@ def chartProperties(counter,path):
               y0,
               y1*plot_margin))
 
-    plt.tick_params(axis='both', which='major', labelsize=6)
-    plt.tick_params(axis='both', which='minor', labelsize=6)
+    plt.tick_params(axis='both', which='major', labelsize=8)
+    plt.tick_params(axis='both', which='minor', labelsize=8)
     plt.tight_layout()
 
     autolabel(numberchart,seen_values_pct)

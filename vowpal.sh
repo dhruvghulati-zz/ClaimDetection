@@ -1,6 +1,6 @@
 #!/bin/bash
 
-declare -a APEthreshold=(0.0050 0.15);
+declare -a APEthreshold=(0.0050);
 
  # 0.15
 
@@ -9,13 +9,18 @@ declare -a APEthreshold=(0.0050 0.15);
 # Shorter params
 # 0.0001 0.001 0.01 0.05 0.1 0.15 0.30 0.50 0.75 1.0
 
-declare -a costThreshold=(0.0001 0.001 0.0050 0.01 0.05 0.1 0.15 0.30 0.50 0.75 1.0);
+declare -a costThreshold=(0.05 0.15);
+
+# 0.0001 0.001 0.0050 0.01 0.05 0.1 0.15 0.30 0.50 0.75 1.0
 
 # declare -a biasThreshold=(0.00);
 
-declare -a slopeThreshold=(0.0001 0.001 0.01 0.05 0.1 0.15 0.30 0.50 0.75 1.0);
+declare -a slopeThreshold=(0.01 1.0);
 
-FILES=data/output/zero/arow_test/
+# 0.0001 0.001 0.01 0.05 0.1 0.15 0.30 0.50 0.75 1.0
+
+# This is when you want to select certain models
+FILES=data/output/zero/arow_final/
 
 for ape in "${APEthreshold[@]}";
 do
@@ -26,7 +31,7 @@ do
       do
         for slope in "${slopeThreshold[@]}";
         do
-            python src/main/costSensitiveClassifier.py data/output/predictedPropertiesZero.json data/output/devLabels.json data/featuresKept.json data/output/zero/arow_test/ data/output/zero/arow_test/predict3/ data/output/zero/arow_test/probPredict3/ $cost 0.00 $slope
+            python src/main/costSensitiveClassifier.py data/output/predictedPropertiesZero.json data/output/cleanFullLabels.json data/featuresKept.json data/output/zero/arow_final/ data/output/zero/arow_final/predict/ data/output/zero/arow_final/probPredict/ $cost 0.00 $slope
         done
       done
       # Now do the predictions with all these files outputting them somewhere
@@ -45,4 +50,4 @@ do
 done
 
 # Now make different probability predictions with the same input files and output these also somewhere in a tuning version for precision recall
-python src/main/costPredictions.py data/output/zero/arow_test/open_label_mapping.txt data/output/zero/arow_test/closed_label_mapping.txt data/output/zero/arow_test/open_label_mapping_threshold.txt data/output/zero/arow_test/closed_label_mapping_threshold.txt data/output/devLabels.json data/output/zero/arow_test/predict3/ data/output/zero/arow_test/probPredict3/ data/output/zero/arow_test/results3/
+python src/main/costPredictions.py data/output/zero/arow_final/open_label_mapping.txt data/output/zero/arow_final/closed_label_mapping.txt data/output/zero/arow_final/open_label_mapping_threshold.txt data/output/zero/arow_final/closed_label_mapping_threshold.txt data/output/cleanFullLabels.json data/output/zero/arow_final/predict/ data/output/zero/arow_final/probPredict/ data/output/zero/arow_final/results2/

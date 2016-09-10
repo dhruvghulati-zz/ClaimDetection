@@ -109,24 +109,22 @@ def test_features(testSentences):
     global vectorizer
 
     for sentence in testSentences:
-        if sentence['parsedSentence'] != {} and sentence['mape_label'] != {}:
+        words = " ".join(sentence_to_words(sentence['parsedSentence'], True))
+        word_list = sentence_to_words(sentence['parsedSentence'], True)
+        wordgrams = find_ngrams(word_list,2)
 
-            words = " ".join(sentence_to_words(sentence['parsedSentence'], True))
-            word_list = sentence_to_words(sentence['parsedSentence'], True)
-            wordgrams = find_ngrams(word_list,2)
+        for i,grams in enumerate(wordgrams):
+          wordgrams[i] = '+'.join(grams)
+        wordgrams= (" ").join(wordgrams)
+        test_gramlist.append(wordgrams)
+        clean_test_sentences.append(words)
+        test_property_labels.append(sentence['property'])
+        bigrams = ""
+        if "depPath" in sentence.keys():
+            bigrams = sentence['depPath'].encode('utf-8')
 
-            for i,grams in enumerate(wordgrams):
-              wordgrams[i] = '+'.join(grams)
-            wordgrams= (" ").join(wordgrams)
-            test_gramlist.append(wordgrams)
-            clean_test_sentences.append(words)
-            test_property_labels.append(sentence['property'])
-            bigrams = ""
-            if "depPath" in sentence.keys():
-                bigrams = sentence['depPath']
-
-            test_bigram_list.append(bigrams)
-            test_wordbigram_list.append((words + " " + bigrams.decode("utf-8"))).decode('utf-8')
+        test_bigram_list.append(bigrams)
+        test_wordbigram_list.append(words + " " + bigrams.decode("utf-8"))
 
 
 # Find index of the true label for the sentence, and if that same index for that sentence is one, return the classifier class, else no region
@@ -147,14 +145,6 @@ if __name__ == "__main__":
     with open(sys.argv[3]) as featuresKept:
         properties = json.loads(featuresKept.read())
     properties.append("no_region")
-
-    finalTestSentences = []
-
-    for sentence in testSentences:
-        if sentence['parsedSentence'] != {} and sentence['mape_label'] != {} and sentence['mape'] != {} and sentence[
-            'property'] != {} and sentence['property'] in properties:
-            # print sentence['property']
-            finalTestSentences.append(sentence)
 
     '''
     All the arrays needed to test.
@@ -195,14 +185,14 @@ if __name__ == "__main__":
     print "Getting all the words in the training sentences...\n"
     #
     # test_data_features = test_features(finalTestSentences)
-    test_features(finalTestSentences)
+    test_features(testSentences)
 
     print len(clean_test_sentences), "sets of test features"
     #
     # print clean_test_sentences
     #
     # Load in the test data
-    test = pd.DataFrame(finalTestSentences)
+    test = pd.DataFrame(testSentences)
 
 
     # TODO This was an issue on command line - change to [2] if on command line. Should be 8 if testing.
@@ -214,7 +204,7 @@ if __name__ == "__main__":
     print "Theshold is ", threshold
 
     # This is outputted for the probability predictor
-    testPath = os.path.join(sys.argv[4] + '/testData.csv')
+    testPath = os.path.join(sys.argv[4] + 'testData.csv')
 
     test.to_csv(path_or_buf=testPath, encoding='utf-8')
 
@@ -294,11 +284,11 @@ if __name__ == "__main__":
     print "Saving the category mappings to files\n"
 
     multi_logit_categories = np.array(open_multi_logit_threshold_words.classes_)
-    category_path = os.path.join(sys.argv[4] + '/openthreshold_categories.txt')
+    category_path = os.path.join(sys.argv[4] + 'openthreshold_categories.txt')
     np.savetxt(category_path, multi_logit_categories, fmt='%s')
 
     multi_logit_categories = np.array(closed_multi_logit_threshold_words.classes_)
-    category_path = os.path.join(sys.argv[4] + '/closedthreshold_categories.txt')
+    category_path = os.path.join(sys.argv[4] + 'closedthreshold_categories.txt')
     np.savetxt(category_path, multi_logit_categories, fmt='%s')
     #
     '''
@@ -306,18 +296,18 @@ if __name__ == "__main__":
     This is where the predictors start
 
     '''
-
+    # 'test_data_mape_label''andreas_threshold','open_distant_sv_property_threshold', 'closed_distant_sv_property_threshold',
     models = ['open_multi_logit_threshold_words', 'closed_multi_logit_threshold_words',
                'open_multi_logit_threshold_bigrams', 'closed_multi_logit_threshold_bigrams',
                'open_multi_logit_threshold_wordgrams',  'closed_multi_logit_threshold_wordgrams',
               'open_multi_logit_threshold_depgrams',  'closed_multi_logit_threshold_depgrams',
-              'open_distant_sv_property_threshold', 'closed_distant_sv_property_threshold','andreas_threshold','categorical_random_threshold',
-              'closed_categorical_random_threshold','test_data_mape_label', 'claim_label'
+              'categorical_random_threshold','test_data_mape_label''andreas_threshold','open_distant_sv_property_threshold', 'closed_distant_sv_property_threshold',
+              'closed_categorical_random_threshold', 'claim_label'
               ]
 
 
-    categorical_random_threshold = rng.choice(list(unique_train_labels_threshold), len(finalTestSentences))
-    closed_categorical_random_threshold = rng.choice(list(closed_unique_train_labels_threshold),len(finalTestSentences))
+    categorical_random_threshold = rng.choice(list(unique_train_labels_threshold), len(testSentences))
+    closed_categorical_random_threshold = rng.choice(list(closed_unique_train_labels_threshold),len(testSentences))
 
     model_data = {model:{} for model in models}
 
@@ -368,10 +358,10 @@ if __name__ == "__main__":
             dict['binary_prediction'] = y_true_claim.tolist()
     # print model_data
     # This tells the probability predictor
-    model_path = os.path.join(sys.argv[4] + '/models.json')
+    model_path = os.path.join(sys.argv[4] + 'models.json')
 
     with open(model_path, "wb") as out:
-        json.dump(model_data, out,indent=4)
+        json.dump(model_data, out)
 
     categorical_data = {}
 
@@ -395,7 +385,7 @@ if __name__ == "__main__":
 
     categorical_data.to_csv(path_or_buf=categoricalPath,encoding='utf-8')
 
-    model_path = os.path.join(sys.argv[4] + '/models.json')
+    model_path = os.path.join(sys.argv[4] + 'models.json')
 
     # np.savetxt(model_path, model_data)
 
@@ -407,12 +397,11 @@ if __name__ == "__main__":
 
     for (outerKey, innerKey),values in output.iteritems():
         if innerKey=='prediction' and values:
-            # print values
-            split_values = np.array([str(item).split('/')[3] if item!="no_region" else item for item in values])
+            split_values = np.array([str(item).split('/')[3] if item=="no_region" else item for item in values])
             output[(outerKey, innerKey)] = split_values
             # output[(outerKey, innerKey)]= [item.split('/')[3] for item in values]
         if innerKey == 'prediction' and not values:
-            output[(outerKey, innerKey)] = np.array(["no_categorical_value" for x in range(len(finalTestSentences))])
+            output[(outerKey, innerKey)] = np.array(["no_categorical_value" for x in range(len(testSentences))])
 
     output = pd.DataFrame(output)
 
