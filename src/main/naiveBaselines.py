@@ -198,6 +198,8 @@ if __name__ == "__main__":
     # TODO This was an issue on command line - change to [2] if on command line, 8 if not
     testSet = str(os.path.splitext(sys.argv[2])[0]).split("/")[2]
 
+    print "Test set is",testSet
+
     print len(train_wordlist), "sets of training features"
 
     # Fit the logistic classifiers to the training set, using the bag of words as features
@@ -260,7 +262,7 @@ if __name__ == "__main__":
     models = ['open_multi_logit_words', 'closed_multi_logit_words',
               'open_multi_logit_bigrams', 'closed_multi_logit_bigrams',
               'open_multi_logit_wordgrams', 'closed_multi_logit_wordgrams',
-              'open_multi_logit_depgrams', 'closed_multi_logit_depgrams','test_data_mape_label',
+              'open_multi_logit_depgrams', 'closed_multi_logit_depgrams',
                 'random_binary_label','distant_supervision_open','distant_supervision_closed',
               'random_categorical_label', 'closed_random_categorical_label', 'claim_label',
               'andreas_property_label', 'andreas_prediction', 'negative_baseline',

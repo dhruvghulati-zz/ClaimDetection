@@ -16,6 +16,7 @@ import json
 import sys
 import re
 import numpy as np
+import ast
 
 def loadMatrix(jsonFile):
     print "loading from file " + jsonFile
@@ -114,7 +115,7 @@ def testSentenceLabels(input_properties):
         for file in files:
             filepath = subdir + os.sep + file
             if filepath.endswith(".xlsx"):
-                # print "Filepath is",filepath
+                print "Filepath is",filepath
                 wb = xlrd.open_workbook(filepath, encoding_override="utf-8")
                 for s in wb.sheets():
                     # read header values into the list
@@ -133,6 +134,11 @@ def testSentenceLabels(input_properties):
                         sentence['property'] = {}
                         sentence['mape'] = s.cell(row_index, mape_index).value
                         sentence['claim'] = s.cell(row_index, claim_index).value
+                        lines = str(s.cell(row_index, dep_index).value)
+                        try:
+                           sentence['patterns'] = ast.literal_eval(lines)
+                        except (ValueError,SyntaxError):
+                            continue
                         text = str(s.cell(row_index, dep_index).value)
                         text = re.sub(r'\[u|\]', "", text)
                         text = text.split(",")[0]

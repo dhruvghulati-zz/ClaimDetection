@@ -1,6 +1,6 @@
 #!/bin/bash
 
-declare -a APEthreshold=(0.0050);
+declare -a APEthreshold=(0.001 0.75);
 
  # 0.15
 
@@ -20,18 +20,18 @@ declare -a slopeThreshold=(0.01 1.0);
 # 0.0001 0.001 0.01 0.05 0.1 0.15 0.30 0.50 0.75 1.0
 
 # This is when you want to select certain models
-FILES=data/output/zero/arow_final/
+# FILES=data/output/zero/arow_final/
 
 for ape in "${APEthreshold[@]}";
 do
       python src/main/propertyPredictor.py data/freebaseTriples.json data/sentenceMatrixFilteredZero.json data/output/predictedPropertiesZero.json $ape data/featuresKept.json
-      python src/main/testFeatures.py data/featuresKept.json $ape data/freebaseTriples.json data/output/devLabels.json data/output/testLabels.json data/output/fullTestLabels.json
+      python src/main/testFeatures.py data/featuresKept.json $ape data/freebaseTriples.json data/output/devLabels.json data/output/testLabels.json data/output/fullTestLabels.json data/output/cleanFullLabels.json data/output/cleanFullLabelsDistant.json
       # Create different files with different thresholds and probability thresholds. We have models that do not care about this cost threshold though.
       for cost in "${costThreshold[@]}";
       do
         for slope in "${slopeThreshold[@]}";
         do
-            python src/main/costSensitiveClassifier.py data/output/predictedPropertiesZero.json data/output/cleanFullLabels.json data/featuresKept.json data/output/zero/arow_final/ data/output/zero/arow_final/predict/ data/output/zero/arow_final/probPredict/ $cost 0.00 $slope
+            python src/main/costSensitiveClassifier.py data/output/predictedPropertiesZero.json data/output/cleanFullLabelsDistant.json data/featuresKept.json data/output/zero/arow_final/ data/output/zero/arow_final/predict1/ data/output/zero/arow_final/probPredict1/ $cost 0.00 $slope
         done
       done
       # Now do the predictions with all these files outputting them somewhere
@@ -50,4 +50,4 @@ do
 done
 
 # Now make different probability predictions with the same input files and output these also somewhere in a tuning version for precision recall
-python src/main/costPredictions.py data/output/zero/arow_final/open_label_mapping.txt data/output/zero/arow_final/closed_label_mapping.txt data/output/zero/arow_final/open_label_mapping_threshold.txt data/output/zero/arow_final/closed_label_mapping_threshold.txt data/output/cleanFullLabels.json data/output/zero/arow_final/predict/ data/output/zero/arow_final/probPredict/ data/output/zero/arow_final/results2/
+python src/main/costPredictions.py data/output/zero/arow_final/open_label_mapping.txt data/output/zero/arow_final/closed_label_mapping.txt data/output/zero/arow_final/open_label_mapping_threshold.txt data/output/zero/arow_final/closed_label_mapping_threshold.txt data/output/cleanFullLabelsDistant.json data/output/zero/arow_final/predict1/ data/output/zero/arow_final/probPredict1/ data/output/zero/arow_final/results1/
