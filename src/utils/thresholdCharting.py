@@ -1,3 +1,13 @@
+'''
+
+Charts the effect of thresholding across the development set for both APE thresholds and cost thresholds.
+
+data/output/zero/arow_test/test2/summaryEvaluation.csv
+figures/
+data/output/zero/arow_test/results2/summaryEvaluationCost.csv
+
+'''
+
 from operator import itemgetter
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,7 +23,7 @@ import os
 
 random.seed(11)
 
-def costThresholdSlopeCharter(inputfile,outfile):
+def costThresholdSlopeCharter3D(inputfile,outfile):
 
     resultCSV = pd.read_csv(inputfile).sort_values(by='ape_threshold')
 
@@ -75,6 +85,103 @@ def costThresholdSlopeCharter(inputfile,outfile):
 
     plt.savefig(outfile)
 
+def costThresholdCharter(inputfile, outfile):
+
+    resultCSV = pd.read_csv(inputfile).sort_values(by='cost_threshold')
+
+    resultCSVAPE = resultCSV[(resultCSV.score_threshold=='no_prob_threshold') & (resultCSV.sigmoid_slope==1)][['f1','model','cost_threshold']].sort_values(by='cost_threshold')
+
+    openy = resultCSVAPE[resultCSVAPE.model.str.contains('costThreshold_open_cost_2')].copy()
+    closedy = resultCSVAPE[resultCSVAPE.model.str.contains('costThreshold_closed_cost_2')].copy()
+
+    openy.loc[:, 'model'] = 'open'
+    closedy.loc[:, 'model'] = 'closed'
+
+
+    x = openy[['cost_threshold']]
+    y1 = openy[['f1']]
+    y2 = closedy[['f1']]
+
+    plt.figure()
+
+    fig,ax = plt.subplots()
+
+    openlabel = "\n".join(wrap('Open Evaluation: Cost-Sensitive Model'))
+    closedlabel = "\n".join(wrap('Closed Evaluation: Cost-Sensitive Model'))
+    title = "\n".join(wrap('Dev Set: Cost Thresholding Effect: Sigmoid Slope 1'))
+
+    plt.plot(x,y1,label=openlabel)
+    plt.plot(x,y2,label=closedlabel)
+    plt.xlabel('Cost Thresholds')
+    plt.ylabel('F1',rotation=0,labelpad=15)
+    plt.title(title,fontsize = 10)
+    ax.tick_params(axis='both', which='major', labelsize=8)
+    ax.tick_params(axis='both', which='minor', labelsize=8)
+    vals = ax.get_yticks()
+    ax.set_yticklabels(['{:1.0f}%'.format(x*100) for x in vals])
+    # fmt = '%.0f%%' # Format you want the ticks, e.g. '40%'
+    # xticks = mtick.FormatStrFormatter(fmt)
+    # ax.xaxis.set_major_formatter(xticks)
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0 + box.height * 0.1,
+                     box.width, box.height * 0.9])
+
+    # Put a legend below current axis
+    L = ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15),
+              fancybox=True, shadow=True, ncol=2,fontsize=8)
+
+    # plt.tight_layout()
+
+    plt.savefig(outfile)
+
+def slopeThresholdCharter(inputfile, outfile):
+
+    resultCSV = pd.read_csv(inputfile).sort_values(by='sigmoid_slope')
+
+    resultCSVAPE = resultCSV[(resultCSV.score_threshold=='no_prob_threshold') & (resultCSV.cost_threshold==0.001)][['f1','model','sigmoid_slope']].sort_values(by='sigmoid_slope')
+
+    openy = resultCSVAPE[resultCSVAPE.model.str.contains('costThreshold_open_cost_2')].copy()
+    closedy = resultCSVAPE[resultCSVAPE.model.str.contains('costThreshold_closed_cost_2')].copy()
+
+    openy.loc[:, 'model'] = 'open'
+    closedy.loc[:, 'model'] = 'closed'
+
+
+    x = openy[['sigmoid_slope']]
+    y1 = openy[['f1']]
+    y2 = closedy[['f1']]
+
+    plt.figure()
+
+    fig,ax = plt.subplots()
+
+    openlabel = "\n".join(wrap('Open Evaluation: Cost-Sensitive Model'))
+    closedlabel = "\n".join(wrap('Closed Evaluation: Cost-Sensitive Model'))
+    title = "\n".join(wrap('Dev Set: Sigmoid Slope Effect: Cost Threshold 0.1%'))
+
+    plt.plot(x,y1,label=openlabel)
+    plt.plot(x,y2,label=closedlabel)
+    plt.xlabel('Sigmoid Slopes')
+    plt.ylabel('F1',rotation=0,labelpad=15)
+    plt.title(title,fontsize = 10)
+    ax.tick_params(axis='both', which='major', labelsize=8)
+    ax.tick_params(axis='both', which='minor', labelsize=8)
+    vals = ax.get_yticks()
+    ax.set_yticklabels(['{:1.0f}%'.format(x*100) for x in vals])
+    # fmt = '%.0f%%' # Format you want the ticks, e.g. '40%'
+    # xticks = mtick.FormatStrFormatter(fmt)
+    # ax.xaxis.set_major_formatter(xticks)
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0 + box.height * 0.1,
+                     box.width, box.height * 0.9])
+
+    # Put a legend below current axis
+    L = ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15),
+              fancybox=True, shadow=True, ncol=2,fontsize=8)
+
+    # plt.tight_layout()
+
+    plt.savefig(outfile)
 
 def apeThresholdCharter(inputfile, outfile):
 
@@ -138,4 +245,8 @@ if __name__ == "__main__":
 
     # apeThresholdCharter(sys.argv[1],os.path.join(directory,'apeThresholds.png'))
 
-    costThresholdSlopeCharter(sys.argv[3],os.path.join(directory,'costThresholds.png'))
+    # costThresholdSlopeCharter3D(sys.argv[3],os.path.join(directory,'costThresholds.png'))
+
+    costThresholdCharter(sys.argv[3],os.path.join(directory,'costThresholdsOnly.png'))
+
+    slopeThresholdCharter(sys.argv[3],os.path.join(directory,'sigmoidSlopes.png'))

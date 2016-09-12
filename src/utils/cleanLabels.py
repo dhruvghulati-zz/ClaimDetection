@@ -58,6 +58,13 @@ for i, labelTriples in enumerate(testArray):
         bigrams = (' ').join(map(str, bigrams))
         labelTriples['depPath'] = bigrams
 
+# Now convert the label of not about economic statistics etc
+for i, labelTriples in enumerate(testArray):
+    if 'property' in labelTriples.keys():
+        temp_property = copy.deepcopy(labelTriples['property'])
+        if temp_property=="/location/statistical_region/not_about_economic_statistics":
+            temp_property = "no_region"
+        labelTriples['property'] = temp_property
 
 # Now split into dev and test
 testLabels = []
@@ -77,11 +84,11 @@ posTest = 0
 posDev = 0
 
 for i, row in enumerate(testLabels):
-    if row['property'].split("/")[3] =="statistic_not_listed" or row['property'].split("/")[3] =="not_about_economic_statistics" and row['claim']==1:
+    if row['property']!="no_region" and row['claim']==1:
         posTest+=1
 
 for i, row in enumerate(devLabels):
-    if row['property'].split("/")[3] =="statistic_not_listed" or row['property'].split("/")[3] =="not_about_economic_statistics" and row['claim']==1:
+    if row['property']!="no_region" and row['claim']==1:
         posDev+=1
 
 print "Number of +ve dev sentences is", posDev,"\n"

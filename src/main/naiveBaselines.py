@@ -115,6 +115,12 @@ def training_features(inputSentences):
             #
             # return train_data_features
 
+def change(word):
+    # print "Word is",word
+    if word=="no_region":
+        return word
+    else:
+        return word.split('/')[3]
 
 def test_features(testSentences):
     global vectorizer
@@ -147,6 +153,23 @@ def test_features(testSentences):
 
 
 # Find index of the true label for the sentence, and if that same index for that sentence is one, return the classifier class, else no region
+
+
+def uniqify(seq, idfun=None):
+   # order preserving
+   if idfun is None:
+       def idfun(x): return x
+   seen = {}
+   result = []
+   for item in seq:
+       marker = idfun(item)
+       # in old Python versions:
+       # if seen.has_key(marker)
+       # but in new ones:
+       if marker in seen: continue
+       seen[marker] = 1
+       result.append(item)
+   return result
 
 if __name__ == "__main__":
     # training data
@@ -258,12 +281,13 @@ if __name__ == "__main__":
     np.savetxt(category_path, multi_logit_categories, fmt='%s')
 
     # 'test_data_mape_label',TODO - this is not in the clean labels
+    # TODO - distant supervision doesn't work for clean labels as many contain useless regions
     # 'distant_supervision_open','distant_supervision_closed',
     models = ['open_multi_logit_words', 'closed_multi_logit_words',
               'open_multi_logit_bigrams', 'closed_multi_logit_bigrams',
               'open_multi_logit_wordgrams', 'closed_multi_logit_wordgrams',
               'open_multi_logit_depgrams', 'closed_multi_logit_depgrams',
-                'random_binary_label','distant_supervision_open','distant_supervision_closed',
+                'random_binary_label',
               'random_categorical_label', 'closed_random_categorical_label', 'claim_label',
               'andreas_property_label', 'andreas_prediction', 'negative_baseline',
               ]
@@ -282,7 +306,11 @@ if __name__ == "__main__":
 
     # These are the ground truths
     y_multi_true = np.array(test['property'])
+    # print "True labels are",y_multi_true
     y_true_claim = np.array(test['claim'])
+    unique_test_labels = uniqify(y_multi_true)
+
+    # print "Here are the list of unique true labels",(unique_test_labels)
 
     # This is Andreas model for distant supervision
     # y_andreas_mape = test['mape_label']
@@ -385,12 +413,18 @@ if __name__ == "__main__":
                                             average=None)[2]
             dict['binary_prediction'] = []
             for predict, true in zip(dict['prediction'], y_multi_true):
+                # This needs to account for also if the prediction was "no_region"
                 if predict == true:
-                    dict['binary_prediction'].append(1)
+                    if predict=="no_region":
+                        # Predicting no claim
+                        dict['binary_prediction'].append(0)
+                    else:
+                        dict['binary_prediction'].append(1)
                 else:
                     dict['binary_prediction'].append(0)
 
-    categorical_data = pd.DataFrame(categorical_data, index=[item.split('/')[3] for item in list(set(y_multi_true))])
+    # This accounts for the fact that no region cannot be split
+    categorical_data = pd.DataFrame(categorical_data, index=[change(item) for item in list(set(y_multi_true))])
 
     categoricalPath = os.path.join(sys.argv[4] + testSet + '_no_threshold_categoricalResults.csv')
 
@@ -402,7 +436,7 @@ if __name__ == "__main__":
     for (outerKey, innerKey), values in output.iteritems():
         if innerKey == 'prediction' and values:
             # print outerKey,values
-            split_values = np.array([str(item).split('/')[3] if item=="no_region" else item for item in values])
+            split_values = np.array([change(item) for item in values])
             output[(outerKey, innerKey)] = split_values
         if innerKey == 'prediction' and not values:
             output[(outerKey, innerKey)] = np.array(["no_categorical_value" for x in range(len(testSentences))])

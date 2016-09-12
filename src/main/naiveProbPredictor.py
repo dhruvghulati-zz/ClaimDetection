@@ -18,12 +18,17 @@ import os
 import json
 import copy
 
+def change(word):
+    if word=="no_region":
+        return word
+    else:
+        return word.split('/')[3]
 
 def probabilityThreshold(categories,prediction, numberProperties, testCatLabels,fixedProbThreshold):
-    print "Number of properties is", numberProperties
+    # print "Number of properties is", numberProperties
     meanProbThreshold = 1 / float(numberProperties)
-    print "Threshold is", meanProbThreshold
-    print "Prob threshold is", fixedProbThreshold
+    # print "Threshold is", meanProbThreshold
+    # print "Prob threshold is", fixedProbThreshold
 
     # print "Categories are",categories
     # # print "prediction is", prediction
@@ -32,7 +37,7 @@ def probabilityThreshold(categories,prediction, numberProperties, testCatLabels,
     fixedPrediction = np.array(prediction)
     catPrediction = np.copy(fixedPrediction).tolist()
 
-    print "Dimensions of prediction matrix are",fixedPrediction.shape
+    # print "Dimensions of prediction matrix are",fixedPrediction.shape
 
     catIndex = []
 
@@ -187,7 +192,7 @@ if __name__ == "__main__":
                                             average=None)[2]
 
 
-    categorical_data = pd.DataFrame(categorical_data, index=[item.split('/')[3] for item in list(set(y_multi_true))])
+    categorical_data = pd.DataFrame(categorical_data, index=[change(item) for item in list(set(y_multi_true))])
 
     categoricalPath = os.path.join(sys.argv[1] + testSet + "_" + 'no_threshold' + str(probThreshold)+'_categoricalResults.csv')
 
@@ -206,7 +211,8 @@ if __name__ == "__main__":
     data = {
             ('global','parsed_sentence'): parsed_sentences,
             ('global','threshold'):threshold_array,
-            ('global','claim'):claim_array
+            ('global','claim'):claim_array,
+            ('global','property'):y_multi_true,
             }
 
     # print "Data is",data

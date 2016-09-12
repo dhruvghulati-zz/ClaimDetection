@@ -65,6 +65,11 @@ rng = np.random.RandomState(101)
 #
 #     return xs, ys
 
+def change(word):
+    if word=="no_region":
+        return word
+    else:
+        return word.split('/')[3]
 
 def sentence_to_words(sentence, remove_stopwords=False):
     letters_only = re.sub('[^a-zA-Z| LOCATION_SLOT | NUMBER_SLOT]', " ", sentence)
@@ -301,7 +306,7 @@ if __name__ == "__main__":
                'open_multi_logit_threshold_bigrams', 'closed_multi_logit_threshold_bigrams',
                'open_multi_logit_threshold_wordgrams',  'closed_multi_logit_threshold_wordgrams',
               'open_multi_logit_threshold_depgrams',  'closed_multi_logit_threshold_depgrams',
-              'categorical_random_threshold','test_data_mape_label''andreas_threshold','open_distant_sv_property_threshold', 'closed_distant_sv_property_threshold',
+              'categorical_random_threshold',
               'closed_categorical_random_threshold', 'claim_label'
               ]
 
@@ -374,12 +379,17 @@ if __name__ == "__main__":
             categorical_data[(model,'f1')]=precision_recall_fscore_support(y_multi_true,dict['prediction'],labels=list(set(y_multi_true)),average=None)[2]
             dict['binary_prediction']=[]
             for predict,true in zip(dict['prediction'],y_multi_true):
-                if predict==true:
-                    dict['binary_prediction'].append(1)
+                # This needs to account for also if the prediction was "no_region"
+                if predict == true:
+                    if predict=="no_region":
+                        # Predicting no claim
+                        dict['binary_prediction'].append(0)
+                    else:
+                        dict['binary_prediction'].append(1)
                 else:
                     dict['binary_prediction'].append(0)
 
-    categorical_data = pd.DataFrame(categorical_data,index=[item.split('/')[3] for item in list(set(y_multi_true))])
+    categorical_data = pd.DataFrame(categorical_data,index=[change(item) for item in list(set(y_multi_true))])
 
     categoricalPath = os.path.join(sys.argv[4] + testSet + '_' + str(threshold) + '_categoricalResults.csv')
 
@@ -397,7 +407,7 @@ if __name__ == "__main__":
 
     for (outerKey, innerKey),values in output.iteritems():
         if innerKey=='prediction' and values:
-            split_values = np.array([str(item).split('/')[3] if item=="no_region" else item for item in values])
+            split_values = np.array([change(item) for item in values])
             output[(outerKey, innerKey)] = split_values
             # output[(outerKey, innerKey)]= [item.split('/')[3] for item in values]
         if innerKey == 'prediction' and not values:
@@ -477,6 +487,7 @@ if __name__ == "__main__":
         summaryDF = pd.concat([summaryDF, DF])
 
     for model,dict in model_data.iteritems():
+        # print "Model",model, "Prediction",dict['binary_prediction']
         evaluation(y_true_claim, dict['binary_prediction'], testSet, threshold)
 
     # print summaryDF
