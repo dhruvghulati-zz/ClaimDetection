@@ -4,6 +4,8 @@ The following repository contains the source code for a thesis completed for the
 
 Several large data files are needed to run the pipeline effectively, feel free to raise an issue for me to email them to you directly.
 
+The annotated claims dataset is `claim_labels.csv` in the data folder.
+
 ##Data
 
 _freebaseProperties.json_ is a dictionary of per statistical property values for each region from Freebase e.g.
