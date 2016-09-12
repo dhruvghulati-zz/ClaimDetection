@@ -56,5 +56,8 @@ _sentenceRegionValue.json_ is a an array of dictionaries of parsed sentences wit
 - **utils/precisionRecall.py**: Looks through all files produce by the textual patterns model across all properties and evaluates overall metrics.
 - **utils/cleanLabels.py** Augments the labeled claims with other properties of sentences, for example surface patterns and dependency paths, for fair testing, converts negative labels, and other filtering to any annotated sentences.
 
+### Bash Scripts
 
-The algorithm will evolve as we will choose different ways to obtain features and different classifiers, potentially moving to LSTMs. We will also evolve the lexical approach here to use latent variables e.g. using word2vec.
+- **vowpal.sh** Runs the cost sensitive classifier pipeline with several thresholds, bias and sigmoid slopes for hyper-parameter tuning.
+- **threshold.sh** Does the same for the distantly supervised model with several APE thresholds.
+- **textualpatterns.sh** Outputs every prediction from the textual patterns model in one go instead of requiring to run one by one, evaluating recall in one go.
